@@ -23,3 +23,6 @@ install-as-app (PWA manifest), delete account.
 
 ## Deliberately not built
 Donation receipts / letterhead (to be specified). Profile photo upload. "Can download" is enforced in the UI only; row-level security protects the data itself.
+
+## Using the Supabase CLI instead of the SQL editor
+`supabase/migrations/` holds the same two SQL files in order. After `supabase link --project-ref <ref>`, run `supabase db push`.
