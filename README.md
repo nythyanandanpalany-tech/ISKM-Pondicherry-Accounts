@@ -1,22 +1,22 @@
 # ExpenseFlow
 
-Expense tracking for temple / seva groups, with an accountant workflow.
-Each expense carries **two images**: the **payment screenshot** and the **bill**.
-Imported bank-statement rows are then matched to expenses on a side-by-side Reconcile screen.
+Workspace-based expense & income ledger for temples / seva groups, modelled on myexpenseflow.in,
+plus two additions: **two images per entry** (bill + payment screenshot) and **bank-statement reconciliation**.
 
 ## Setup
 1. Create a free project at https://supabase.com
-2. SQL Editor → paste `supabase/schema.sql` → Run (tables, security rules, private `receipts` bucket, default categories)
-3. `cp .env.local.example .env.local` and fill in Project URL + anon key (Project Settings → API)
+2. SQL Editor → paste `supabase/schema.sql` → Run
+3. `cp .env.local.example .env.local`, fill Project URL + anon key (Project Settings → API)
 4. `npm install && npm run dev` → http://localhost:3000
-5. Sign up. The **first account becomes admin**; promote others under Settings → Users.
-6. Deploy: push to GitHub, import in Vercel, add the same two env vars.
+5. Sign up, create a workspace (you become Owner), add members by their sign-up email in Settings.
+6. Deploy on Vercel with the same two env vars. In Supabase → Auth → URL config add your domain.
 
-## Roles
-- member: adds own expenses, edits them while pending
-- accountant: sees all, approves/rejects, imports bank statements, reconciles
-- admin: everything + role management
+## Features
+Dashboard (stats, budget gauges, activity, daily Report PNG/share) · Ledger (search, period chips, sort, filters, Excel/PDF) ·
+Analytics · Claims (submitted → approved → settled, member balances) · Add entry (expense/income, receipt rule, photo compression ≤150 KB,
+own-pocket claim) · Workspaces + roles (owner/admin/editor/viewer, see-all & download toggles) · Categories/items/people/monthly limits ·
+Excel import · Help/Privacy · **Bank Statement + Reconcile** (CSV import, scored suggestions, auto-match).
 
-## Matching logic (lib/match.ts)
-Score = amount equal (+50) · UTR found in statement (+60) · same day (+20) / ≤3 days (+10) · vendor name in narration (+10).
-"Auto-match" only links a transaction when exactly one expense scores ≥ 70.
+## Not built yet
+Chats, Store (stock in/out), Vouchers for entries without a bill, donation-receipt PDFs, Advanced option view, theme toggle, in-app support inbox.
+Note: "can download" is enforced in the UI only; row-level security protects the data itself.

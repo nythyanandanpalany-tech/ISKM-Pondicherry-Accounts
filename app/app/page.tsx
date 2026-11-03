@@ -2,53 +2,67 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { dmy, inr } from "@/lib/format";
-import type { Expense } from "@/lib/types";
+import { dmy } from "@/lib/format";
+import type { Entry } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
-import { StatusBadge } from "@/components/ui";
+import { useWs } from "@/components/WorkspaceProvider";
+import EntryForm from "@/components/EntryForm";
+import { btnGhost, btnPrimary } from "@/components/ui";
+import Gauge from "@/components/Gauge";
 
 export default function Dashboard() {
-  const { profile, isStaff } = useAuth();
-  const [rows, setRows] = useState<Expense[]>([]);
-  const [unmatchedTxns, setUnmatchedTxns] = useState(0);
-  const [matchedCount, setMatchedCount] = useState(0);
+  const { profile } = useAuth();
+  const { ws, categories, items, canWrite, canManage, catName, itemName, personName, money } = useWs();
+  const [rows, setRows] = useState<Entry[]>([]); const [open, setOpen] = useState(false); const [unmatched, setUnmatched] = useState(0); const [more, setMore] = useState(15);
+  const load = () => {
+    supabase.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000).then(({ data }) => setRows((data as Entry[]) ?? []));
+    if (canManage) supabase.from("bank_transactions").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).is("matched_entry_id", null).then(({ count }) => setUnmatched(count ?? 0));
+  };
+  useEffect(load, [ws.id, canManage]);
 
-  useEffect(() => {
-    supabase.from("expenses").select("*").order("expense_date", { ascending: false }).then(({ data }) => setRows((data as Expense[]) ?? []));
-    if (isStaff) {
-      supabase.from("bank_transactions").select("id", { count: "exact", head: true }).eq("direction", "debit").is("matched_expense_id", null).then(({ count }) => setUnmatchedTxns(count ?? 0));
-      supabase.from("bank_transactions").select("id", { count: "exact", head: true }).not("matched_expense_id", "is", null).then(({ count }) => setMatchedCount(count ?? 0));
-    }
-  }, [isStaff]);
-
-  const month = new Date().toISOString().slice(0, 7);
-  const thisMonth = rows.filter((r) => r.expense_date.startsWith(month) && r.status !== "rejected").reduce((s, r) => s + r.amount, 0);
+  const t0 = new Date().toISOString().slice(0, 10); const mo = t0.slice(0, 7);
+  const sum = (f: (e: Entry) => boolean) => rows.filter(f).reduce((s, e) => s + e.amount, 0);
+  const monthExp = rows.filter((e) => e.type === "expense" && e.entry_date.startsWith(mo));
+  const spentBy = (key: "category_id" | "item_id", id: string) => monthExp.filter((e) => e[key] === id).reduce((s, e) => s + e.amount, 0);
+  const gauges = [
+    ...(ws.monthly_budget ? [{ label: "Overall monthly budget", spent: monthExp.reduce((s, e) => s + e.amount, 0), limit: ws.monthly_budget }] : []),
+    ...categories.filter((c) => c.monthly_limit).map((c) => ({ label: c.name, spent: spentBy("category_id", c.id), limit: c.monthly_limit! })),
+    ...items.filter((c) => c.monthly_limit).map((c) => ({ label: `${catName(c.category_id)} · ${c.name}`, spent: spentBy("item_id", c.id), limit: c.monthly_limit! })),
+  ];
   const cards: [string, string, string?][] = [
-    ["This month", inr(thisMonth)],
-    ["Pending approval", String(rows.filter((r) => r.status === "pending").length), "/app/expenses"],
-    ["Missing bill", String(rows.filter((r) => !r.bill_path).length), "/app/expenses"],
-    ["Missing payment screenshot", String(rows.filter((r) => !r.payment_proof_path).length), "/app/expenses"],
-    ...(isStaff ? [["Bank debits to match", String(unmatchedTxns), "/app/reconcile"], ["Matched", String(matchedCount), "/app/reconcile"]] as [string, string, string][] : []),
+    ["Today · expenses", money(sum((e) => e.type === "expense" && e.entry_date === t0))],
+    ["Month expenses", money(sum((e) => e.type === "expense" && e.entry_date.startsWith(mo)))],
+    ["Month income", money(sum((e) => e.type === "income" && e.entry_date.startsWith(mo)))],
+    ["Pending settlement", money(sum((e) => e.claim_status === "submitted" || e.claim_status === "approved")), "/app/claims"],
+    ["Bills missing", String(rows.filter((e) => e.receipt_available && !e.bill_path).length), "/app/ledger"],
+    ...(canManage ? [["Bank rows to match", String(unmatched), "/app/reconcile"] as [string, string, string]] : []),
   ];
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Hare Krishna, {profile.full_name} 🙏</h1>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        {cards.map(([t, v, href]) => {
-          const c = <div className="rounded-xl border bg-white p-4"><div className="text-xs text-slate-500">{t}</div><div className="mt-1 text-2xl font-bold">{v}</div></div>;
-          return href ? <Link key={t} href={href}>{c}</Link> : <div key={t}>{c}</div>;
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Hare Krishna, {profile.full_name} 🙏</h1>
+        <div className="flex gap-2"><Link href="/app/report" className={btnGhost}>Report</Link>{canWrite && <button className={btnPrimary} onClick={() => setOpen(true)}>+ Add entry</button>}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        {cards.map(([t, v, href]) => { const c = <div className="h-full rounded-xl border bg-white p-3"><div className="text-xs text-slate-500">{t}</div><div className="mt-1 text-lg font-bold">{v}</div></div>; return href ? <Link key={t} href={href}>{c}</Link> : <div key={t}>{c}</div>; })}
+      </div>
+      <div className="rounded-xl border bg-white p-4">
+        <div className="mb-3 flex items-center justify-between font-semibold">Budget &amp; item limits {canManage && <Link href="/app/settings" className="text-sm font-normal text-indigo-600">Configure</Link>}</div>
+        <div className="space-y-3">{gauges.map((g) => <Gauge key={g.label} {...g} money={money} />)}
+          {!gauges.length && <div className="text-sm text-slate-400">No limits set. {canManage ? "Set a monthly budget or category limits in Settings." : ""}</div>}</div>
       </div>
       <div className="rounded-xl border bg-white">
-        <div className="border-b p-3 font-semibold">Recent expenses</div>
-        {rows.slice(0, 8).map((r) => (
+        <div className="flex items-center justify-between border-b p-3 font-semibold">Recent activity <Link href="/app/ledger" className="text-sm font-normal text-indigo-600">Ledger</Link></div>
+        {rows.slice(0, more).map((r) => (
           <div key={r.id} className="flex items-center justify-between border-b p-3 text-sm last:border-0">
-            <div><div className="font-medium">{r.title}</div><div className="text-xs text-slate-500">{dmy(r.expense_date)} · {r.vendor}</div></div>
-            <div className="flex items-center gap-3"><StatusBadge status={r.status} /><b>{inr(r.amount)}</b></div>
-          </div>
-        ))}
-        {!rows.length && <div className="p-6 text-center text-sm text-slate-400">No expenses yet. <Link href="/app/expenses" className="text-indigo-600">Add the first one</Link>.</div>}
+            <div><div className="font-medium">{catName(r.category_id) || r.type}{r.item_id && ` · ${itemName(r.item_id)}`}</div>
+              <div className="text-xs text-slate-500">{dmy(r.entry_date)} · {personName(r.person_id)} · {r.payment_mode}{r.note && ` · ${r.note}`}</div></div>
+            <b className={r.type === "income" ? "text-emerald-600" : ""}>{r.type === "income" ? "+" : ""}{money(r.amount)}</b>
+          </div>))}
+        {!rows.length && <div className="p-6 text-center text-sm text-slate-400">No entries yet.</div>}
+        {rows.length > more && <button className="w-full p-3 text-sm text-indigo-600" onClick={() => setMore(more + 15)}>Show 15 more</button>}
       </div>
+      {open && <EntryForm onClose={() => setOpen(false)} onSaved={() => { setOpen(false); load(); }} />}
     </div>
   );
 }

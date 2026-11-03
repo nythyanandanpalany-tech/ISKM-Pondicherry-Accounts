@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
-type Ctx = { profile: Profile; isStaff: boolean; isAdmin: boolean; signOut: () => Promise<void> };
+type Ctx = { profile: Profile; signOut: () => Promise<void> };
 const AuthCtx = createContext<Ctx | null>(null);
 export const useAuth = () => useContext(AuthCtx)!;
 
@@ -26,10 +26,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [router]);
 
   if (!profile) return <div className="p-10 text-center text-slate-500">Loading…</div>;
-  const isStaff = profile.role !== "member";
   return (
     <AuthCtx.Provider value={{
-      profile, isStaff, isAdmin: profile.role === "admin",
+      profile,
       signOut: async () => { await supabase.auth.signOut(); router.replace("/login"); },
     }}>{children}</AuthCtx.Provider>
   );
