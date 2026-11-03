@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import AuthProvider, { useAuth } from "@/components/AuthProvider";
 import WorkspaceProvider, { useWs } from "@/components/WorkspaceProvider";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { useChatUnread } from "@/lib/useChatUnread";
 import Tour from "@/components/Tour";
 
@@ -22,7 +22,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   ];
   async function newWs() {
     const name = prompt("New workspace name?"); if (!name) return;
-    const { data, error } = await supabase.rpc("create_workspace", { p_name: name });
+    const { data, error } = await db.rpc("create_workspace", { p_name: name });
     if (error) return alert(error.message);
     await reloadWorkspaces(); switchTo(data as string);
   }

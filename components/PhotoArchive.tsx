@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import type { Entry } from "@/lib/types";
 import { useWs } from "./WorkspaceProvider";
 import { btnDanger, btnGhost } from "./ui";
@@ -20,7 +20,7 @@ export default function PhotoArchive({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     setBackedUp(false);
-    supabase.from("entries").select("id,entry_date,amount,bill_path,payment_proof_path").eq("workspace_id", ws.id).lt("entry_date", cut)
+    db.from("entries").select("id,entry_date,amount,bill_path,payment_proof_path").eq("workspace_id", ws.id).lt("entry_date", cut)
       .or("bill_path.not.is.null,payment_proof_path.not.is.null").limit(2000).then(({ data }) => setRows((data as Row[]) ?? []));
   }, [ws.id, cut]);
   const files = rows.flatMap((r) => [r.bill_path && { path: r.bill_path, r, kind: "bill" }, r.payment_proof_path && { path: r.payment_proof_path, r, kind: "payment" }].filter(Boolean) as { path: string; r: Row; kind: string }[]);
@@ -30,7 +30,7 @@ export default function PhotoArchive({ onDone }: { onDone: () => void }) {
     try {
       const zip = new JSZip(); const index = ["entry_id,date,amount,kind,file"]; let n = 0;
       for (const f of files) {
-        const { data } = await supabase.storage.from("receipts").download(f.path); if (!data) continue;
+        const { data } = await db.storage.from("receipts").download(f.path); if (!data) continue;
         const name = `${f.r.entry_date}_${f.kind}_${f.r.id.slice(0, 8)}.${f.path.split(".").pop()}`;
         zip.file(name, data); index.push(`${f.r.id},${f.r.entry_date},${f.r.amount},${f.kind},${name}`); n++;
         if (n % 10 === 0) setBusy(`Adding photos… ${n}/${files.length}`);
@@ -45,8 +45,8 @@ export default function PhotoArchive({ onDone }: { onDone: () => void }) {
     if (!confirm(`Permanently remove ${files.length} photos from the server? Entries stay; only the photos go. You can't undo this.`)) return;
     setBusy("Removing…");
     const paths = files.map((f) => f.path);
-    for (let i = 0; i < paths.length; i += 100) { const { error } = await supabase.storage.from("receipts").remove(paths.slice(i, i + 100)); if (error) { setBusy(""); return setMsg(error.message); } }
-    const { error } = await supabase.from("entries").update({ bill_path: null, payment_proof_path: null, receipt_available: false }).in("id", rows.map((r) => r.id));
+    for (let i = 0; i < paths.length; i += 100) { const { error } = await db.storage.from("receipts").remove(paths.slice(i, i + 100)); if (error) { setBusy(""); return setMsg(error.message); } }
+    const { error } = await db.from("entries").update({ bill_path: null, payment_proof_path: null, receipt_available: false }).in("id", rows.map((r) => r.id));
     setBusy(""); setMsg(error ? error.message : `Removed ${paths.length} photos.`); setRows([]); setBackedUp(false); onDone();
   }
   return (

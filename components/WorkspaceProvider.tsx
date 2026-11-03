@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import type { Category, Item, Member, Person, Role, Workspace } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
 import { btnPrimary, input } from "./ui";
@@ -28,8 +28,8 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
 
   const reloadWorkspaces = useCallback(async () => {
     const [w, m] = await Promise.all([
-      supabase.from("workspaces").select("*").order("created_at"),
-      supabase.from("members").select("*").eq("user_id", profile.id),
+      db.from("workspaces").select("*").order("created_at"),
+      db.from("members").select("*").eq("user_id", profile.id),
     ]);
     const list = (w.data as Workspace[]) ?? [];
     setWorkspaces(list); setMine((m.data as Member[]) ?? []); setLoaded(true);
@@ -44,10 +44,10 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   const reload = useCallback(async () => {
     if (!currentId) return;
     const [c, i, p, m] = await Promise.all([
-      supabase.from("categories").select("*").eq("workspace_id", currentId).order("name"),
-      supabase.from("items").select("*").eq("workspace_id", currentId).order("name"),
-      supabase.from("people").select("*").eq("workspace_id", currentId).order("name"),
-      supabase.from("members").select("*, profiles(full_name,email)").eq("workspace_id", currentId),
+      db.from("categories").select("*").eq("workspace_id", currentId).order("name"),
+      db.from("items").select("*").eq("workspace_id", currentId).order("name"),
+      db.from("people").select("*").eq("workspace_id", currentId).order("name"),
+      db.from("members").select("*, profiles(full_name,email)").eq("workspace_id", currentId),
     ]);
     setData({ categories: (c.data as Category[]) ?? [], items: (i.data as Item[]) ?? [], people: (p.data as Person[]) ?? [], members: (m.data as Member[]) ?? [] });
   }, [currentId]);
@@ -58,7 +58,7 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
 
   async function create(e: React.FormEvent) {
     e.preventDefault(); setErr("");
-    const { data: id, error } = await supabase.rpc("create_workspace", { p_name: name.trim() });
+    const { data: id, error } = await db.rpc("create_workspace", { p_name: name.trim() });
     if (error) return setErr(error.message);
     try { localStorage.setItem("ef_ws", id as string); } catch { /* ignore */ }
     setName(""); setCurrentId(id as string); await reloadWorkspaces();

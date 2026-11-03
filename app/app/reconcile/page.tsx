@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import { suggest } from "@/lib/match";
 import type { Entry, Txn } from "@/lib/types";
@@ -14,8 +14,8 @@ export default function Reconcile() {
   const [all, setAll] = useState(false); const [search, setSearch] = useState(""); const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     const [t, e] = await Promise.all([
-      supabase.from("bank_transactions").select("*").eq("workspace_id", ws.id).order("txn_date", { ascending: false }),
-      supabase.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).limit(5000),
+      db.from("bank_transactions").select("*").eq("workspace_id", ws.id).order("txn_date", { ascending: false }),
+      db.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).limit(5000),
     ]);
     setTxns((t.data as Txn[]) ?? []); setEntries((e.data as Entry[]) ?? []);
   }, [ws.id]);
@@ -39,13 +39,13 @@ export default function Reconcile() {
   }, [current, free, all, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!canManage) return <p className="text-sm text-slate-500">Only owners and admins can reconcile.</p>;
-  async function match(t: Txn, e: Entry) { const { error } = await supabase.from("bank_transactions").update({ matched_entry_id: e.id }).eq("id", t.id); if (error) return alert(error.message); setSel(null); load(); }
-  async function unmatch(t: Txn) { await supabase.from("bank_transactions").update({ matched_entry_id: null }).eq("id", t.id); setSel(null); load(); }
+  async function match(t: Txn, e: Entry) { const { error } = await db.from("bank_transactions").update({ matched_entry_id: e.id }).eq("id", t.id); if (error) return alert(error.message); setSel(null); load(); }
+  async function unmatch(t: Txn) { await db.from("bank_transactions").update({ matched_entry_id: null }).eq("id", t.id); setSel(null); load(); }
   async function autoMatch() {
     setBusy(true); const taken = new Set<string>(); let n = 0;
     for (const t of open) {
       const c = suggest(t, free.filter((e) => !taken.has(e.id)), personName); const strong = c.filter((x) => x.score >= 70);
-      if (strong.length === 1) { const { error } = await supabase.from("bank_transactions").update({ matched_entry_id: strong[0].entry.id }).eq("id", t.id); if (!error) { taken.add(strong[0].entry.id); n++; } }
+      if (strong.length === 1) { const { error } = await db.from("bank_transactions").update({ matched_entry_id: strong[0].entry.id }).eq("id", t.id); if (!error) { taken.add(strong[0].entry.id); n++; } }
     }
     setBusy(false); alert(`Auto-matched ${n} transaction(s). Review the rest manually.`); load();
   }

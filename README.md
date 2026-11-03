@@ -1,39 +1,54 @@
-# ExpenseFlow
+# ExpenseFlow — Firebase edition (`firebase` branch)
 
-Workspace-based expense & income ledger for temples / seva groups, modelled on myexpenseflow.in,
-plus two additions: **two images per entry** (bill + payment screenshot) and **bank-statement reconciliation**.
+Workspace-based expense & income ledger for temples / seva groups, with **two images per entry** (bill + payment screenshot)
+and **bank-statement reconciliation**. Runs entirely on Firebase: Auth, Firestore, Cloud Storage, Hosting.
+(The `main` branch is the same app on Supabase.)
 
-## Setup
-1. Create a free project at https://supabase.com
-2. SQL Editor → run `supabase/schema.sql`, then `002_store_chats.sql`, then `003_storage_usage.sql` (in that order)
-3. `cp .env.local.example .env.local`, fill Project URL + anon key (Project Settings → API)
-4. `npm install && npm run dev` → http://localhost:3000
-5. Sign up, create a workspace (you become Owner), add members by their sign-up email in Settings.
-6. Deploy on Vercel with the same two env vars. In Supabase → Auth → URL config add your domain.
+Sample screens from a real run against the Firebase emulators are in `docs/sample/`.
 
-## Features
-**Accounts:** Dashboard (stats, budget gauges, activity) · Ledger (search, period chips, sort, filters, Excel/PDF, **Vouchers** for expenses without a bill) ·
-Analytics · Claims (submitted → approved → settled) · daily Report (PNG/share) · Add entry (expense/income, photo compression ≤150 KB) ·
-**two images per entry** (bill + payment screenshot) · **Bank Statement + Reconcile** (CSV import, scored suggestions, auto-match).
-**Team:** workspaces, roles (owner/admin/editor/viewer), see-all & download toggles, **Chats** (workspace room, private by @username, groups, unread badge, realtime, optional browser alerts),
-**Store** (stores, items with units, stock in/out, low-stock, history, no negative stock).
-**Settings:** categories/items/people/monthly limits, Excel import, modules on/off, theme (system/light/dark), Standard vs Advanced view
-(Advanced adds fund source, beneficiary, CSV, All Bills, modules), sample workspace, guided tour, in-app Support/Suggestions (rows land in the `feedback` table),
-install-as-app (PWA manifest), delete account.
+## Try it locally (no Google account needed)
+```bash
+npm install
+npm run emulators            # Auth + Firestore + Storage emulators (needs Java)
+cp .env.local.example .env.local   # then uncomment NEXT_PUBLIC_USE_EMULATORS=1
+npm run dev                  # http://localhost:3000
+npm run test:rules           # 51 security-rule tests
+```
 
-## Deliberately not built
-Donation receipts / letterhead (to be specified). Profile photo upload. "Can download" is enforced in the UI only; row-level security protects the data itself.
+## Go live
+1. https://console.firebase.google.com → **Add project**.
+2. **Upgrade to the Blaze plan** (pay-as-you-go; needs a card). Cloud Storage requires it. Then set a **budget alert** (Billing → Budgets) at, say, ₹200 — alerts warn but do **not** stop spending.
+3. **Authentication → Sign-in method**: enable *Email/Password* and *Email link (passwordless)*. Add your domain under *Authorized domains*.
+4. **Firestore Database → Create** (production mode; pick a region near you, e.g. `asia-south1`).
+5. **Storage → Get started** (pick the bucket region; the "always free" 5 GB applies to US regions only — check current pricing for others).
+6. **Project settings → Your apps → Web app** → copy the config into `.env.local` (see `.env.local.example`).
+7. Deploy rules and site:
+   ```bash
+   npx firebase login
+   npx firebase use --add          # choose your project
+   npx firebase deploy --only firestore:rules,firestore:indexes,storage
+   npm run deploy                  # builds the static site and deploys to Hosting
+   ```
+8. For the photo **ZIP backup** (Settings → Free up photo space) allow browser downloads once:
+   `gsutil cors set firebase/cors.json gs://YOUR-BUCKET`
+9. Custom domain (e.g. one bought on GoDaddy): Hosting → *Add custom domain* and add the DNS records it shows.
+10. Sign up in the app → create a workspace (you become Owner) → add members by their sign-up email in Settings.
 
-## Using the Supabase CLI instead of the SQL editor
-`supabase/migrations/` holds the same two SQL files in order. After `supabase link --project-ref <ref>`, run `supabase db push`.
+## What it costs
+Free quotas apply on Blaze; you pay only beyond them. Approx. (verify on Google's pricing pages): Firestore 1 GiB stored + 50k reads/day free; Cloud Storage 5 GB stored free in US regions, then a few rupees per GB-month; Hosting 10 GB free.
+Photos are compressed to ~100 KB, so ~200 KB per entry ≈ 25,000 entries in 5 GB.
 
-## Running at zero cost
-Everything here fits free plans, no card needed:
-- **Supabase free** — database + login + photo storage + realtime chat. Limits: 500 MB database, **1 GB photos**, 5 GB bandwidth/month; a project pauses after ~7 days of no use.
-- **Vercel Hobby (or Cloudflare Pages / Netlify free)** — hosts the website at a free `*.vercel.app` address. A custom domain is the only optional cost.
-  (Vercel's Hobby plan is meant for non-commercial use; a temple/seva group is, but check their current terms.)
-- **No pausing:** `vercel.json` runs a daily ping (`/api/keepalive`) so Supabase never sees a quiet week. If you host elsewhere, schedule any free uptime pinger to hit `/api/keepalive` once a day.
-- **Photos stay small:** every photo is compressed in the browser to ~100 KB (WebP/JPEG, long edge ≤ 1600 px); PDFs over 2 MB are refused. ~200 KB per entry with both images ≈ **5,000 entries per free GB**.
-- **Watch the meter:** Settings shows photo storage used; the Dashboard warns admins at 75%.
-- **When it fills up:** Settings → *Free up photo space* → download a ZIP of photos older than N months, then remove them from the server. Entries and amounts are kept.
-- **Backups (free plan has none):** export the Ledger to Excel monthly and keep the photo ZIPs.
+## How it is built
+- `lib/db.ts` — a small query layer over Firestore/Auth/Storage so screens read like `db.from("entries").select().eq("workspace_id", id)`. Flat collections; every document carries `workspace_id`.
+- `firebase/firestore.rules` — all permissions: roles (owner/admin/editor/viewer), "see only own entries", claim approval, stock never negative, chat privacy.
+- `firebase/storage.rules` — photo access only for workspace members; images/PDF only; < 3 MB.
+- `firebase/tests/` — rule tests (`npm run test:rules`).
+
+## Known limits (be aware)
+- **Storage rules not fully verified here.** They look up membership in Firestore (`firestore.get`). The emulator in the build sandbox couldn't evaluate cross-service lookups, so that membership check is untested; the Firestore rules are fully tested. After deploying, check once: a signed-in user who is *not* in a workspace must not be able to open its photos. `firebase/tests/storage.test.mjs` does this on a normal machine. The local demo uses `firebase/storage.emulator.rules`, which skips the membership check.
+- Photo links are Firebase download URLs (long, unguessable, but not time-limited).
+- Editors could in principle change a store item's stock count without recording a move through the API (the app and rules keep it ≥ 0 and consistent when recorded properly). Owners/admins see every change in History.
+- Lists read every matching document in the browser (sorting/filters run client-side). Fine for a temple; add pagination if reads become a cost.
+- Any signed-in user can check whether an email is registered (needed for "add member by email").
+- No spending cap on Blaze — keep the budget alert.
+- Donation receipts/letterhead are intentionally not built yet.

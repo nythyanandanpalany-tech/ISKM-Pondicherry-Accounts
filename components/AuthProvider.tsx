@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import type { Profile } from "@/lib/types";
 
 type Ctx = { profile: Profile; advanced: boolean; reloadProfile: () => Promise<void>; signOut: () => Promise<void> };
@@ -13,21 +13,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const reloadProfile = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     if (!session) return router.replace("/login");
-    const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+    const { data } = await db.from("profiles").select("*").eq("id", session.user.id).single();
     if (data) setProfile(data as Profile);
   };
   useEffect(() => {
     let alive = true;
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       if (!session) return router.replace("/login");
-      const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      const { data } = await db.from("profiles").select("*").eq("id", session.user.id).single();
       if (alive && data) setProfile(data as Profile);
     }
     load();
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { if (!s) router.replace("/login"); });
+    const { data: sub } = db.auth.onAuthStateChange((_e, s) => { if (!s) router.replace("/login"); });
     return () => { alive = false; sub.subscription.unsubscribe(); };
   }, [router]);
 
@@ -35,7 +35,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   return (
     <AuthCtx.Provider value={{
       profile, advanced: !!profile.advanced, reloadProfile,
-      signOut: async () => { await supabase.auth.signOut(); router.replace("/login"); },
+      signOut: async () => { await db.auth.signOut(); router.replace("/login"); },
     }}>{children}</AuthCtx.Provider>
   );
 }

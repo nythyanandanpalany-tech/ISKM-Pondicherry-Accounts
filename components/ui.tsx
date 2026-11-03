@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 
 export const input =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
@@ -36,7 +36,7 @@ export function useSignedUrl(path: string | null | undefined) {
     if (!path) return;
     if (urlCache.has(path)) return;
     let alive = true;
-    supabase.storage.from("receipts").createSignedUrl(path, 3600).then(({ data }) => {
+    db.storage.from("receipts").createSignedUrl(path, 3600).then(({ data }) => {
       if (alive && data) { urlCache.set(path, data.signedUrl); setUrl(data.signedUrl); }
     });
     return () => { alive = false; };

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import { toExcel, toCsv } from "@/lib/export";
 import { MODES, type Entry } from "@/lib/types";
@@ -33,8 +33,8 @@ export default function Ledger() {
 
   const load = useCallback(async () => {
     const [e, t] = await Promise.all([
-      supabase.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).limit(5000),
-      canManage ? supabase.from("bank_transactions").select("matched_entry_id").eq("workspace_id", ws.id).not("matched_entry_id", "is", null) : Promise.resolve({ data: [] }),
+      db.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).limit(5000),
+      canManage ? db.from("bank_transactions").select("matched_entry_id").eq("workspace_id", ws.id).not("matched_entry_id", "is", null) : Promise.resolve({ data: [] }),
     ]);
     setRows((e.data as Entry[]) ?? []);
     setMatched(new Set(((t.data as { matched_entry_id: string }[]) ?? []).map((x) => x.matched_entry_id)));

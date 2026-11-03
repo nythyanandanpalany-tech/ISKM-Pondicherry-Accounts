@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import type { Entry } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
@@ -11,7 +11,7 @@ export default function Bills() {
   const { advanced } = useAuth();
   const { ws, catName, itemName, personName, money } = useWs();
   const [rows, setRows] = useState<Entry[]>([]); const [q, setQ] = useState(""); const [only, setOnly] = useState("");
-  useEffect(() => { supabase.from("entries").select("*").eq("workspace_id", ws.id).or("bill_path.not.is.null,payment_proof_path.not.is.null").order("entry_date", { ascending: false }).limit(300).then(({ data }) => setRows((data as Entry[]) ?? [])); }, [ws.id]);
+  useEffect(() => { db.from("entries").select("*").eq("workspace_id", ws.id).or("bill_path.not.is.null,payment_proof_path.not.is.null").order("entry_date", { ascending: false }).limit(300).then(({ data }) => setRows((data as Entry[]) ?? [])); }, [ws.id]);
   if (!advanced) return <p className="text-sm text-slate-500">“All Bills” is part of the Advanced view. Turn it on in Settings → My account.</p>;
   const shown = rows.filter((r) => (!only || (only === "both" ? r.bill_path && r.payment_proof_path : only === "bill" ? r.bill_path && !r.payment_proof_path : r.payment_proof_path && !r.bill_path)) && (!q || `${catName(r.category_id)} ${itemName(r.item_id)} ${personName(r.person_id)} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())));
   return (

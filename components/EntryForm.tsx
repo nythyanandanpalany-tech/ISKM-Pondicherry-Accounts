@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { today } from "@/lib/format";
 import { compressImage, MAX_PDF_MB } from "@/lib/compress";
 import { MODES, type Entry } from "@/lib/types";
@@ -68,7 +68,7 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
     const small = await compressImage(file);
     const ext = small.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${ws.id}/${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from("receipts").upload(path, small, { contentType: small.type });
+    const { error } = await db.storage.from("receipts").upload(path, small, { contentType: small.type });
     if (error) throw error;
     return path;
   }
@@ -79,7 +79,7 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
     try {
       let person_id = f.person_id || null;
       if (person_id === "__new" && newPerson.trim()) {
-        const { data, error } = await supabase.from("people").insert({ workspace_id: ws.id, name: newPerson.trim() }).select().single();
+        const { data, error } = await db.from("people").insert({ workspace_id: ws.id, name: newPerson.trim() }).select().single();
         if (error) throw error; person_id = data.id; await reload();
       } else if (person_id === "__new") person_id = null;
 
@@ -95,10 +95,10 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
         receipt_available: f.receipt_available, fund_source: f.fund_source.trim() || null, beneficiary: f.beneficiary.trim() || null, bill_path, payment_proof_path, claim_status,
       };
       const { error } = entry
-        ? await supabase.from("entries").update(row).eq("id", entry.id)
-        : await supabase.from("entries").insert({ ...row, workspace_id: ws.id, created_by: profile.id });
+        ? await db.from("entries").update(row).eq("id", entry.id)
+        : await db.from("entries").insert({ ...row, workspace_id: ws.id, created_by: profile.id });
       if (error) throw error;
-      if (stale.length) await supabase.storage.from("receipts").remove(stale);
+      if (stale.length) await db.storage.from("receipts").remove(stale);
       onSaved();
     } catch (ex) { setErr((ex as { message?: string })?.message ?? "Could not save"); } finally { setBusy(false); }
   }

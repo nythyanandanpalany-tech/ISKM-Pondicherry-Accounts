@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import type { Entry, Txn } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
@@ -14,18 +14,18 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
   const [log, setLog] = useState<{ id: string; action: string; at: string; snapshot: Entry }[]>([]);
   useEffect(() => {
     if (!canManage) return;
-    supabase.from("bank_transactions").select("*").eq("matched_entry_id", entry.id).maybeSingle().then(({ data }) => setTxn(data as Txn | null));
-    supabase.from("entry_log").select("*").eq("entry_id", entry.id).order("at", { ascending: false }).then(({ data }) => setLog((data as typeof log) ?? []));
-  }, [entry.id, canManage]);
+    db.from("bank_transactions").select("*").eq("workspace_id", entry.workspace_id).eq("matched_entry_id", entry.id).maybeSingle().then(({ data }) => setTxn(data as Txn | null));
+    db.from("entry_log").select("*").eq("workspace_id", entry.workspace_id).eq("entry_id", entry.id).order("at", { ascending: false }).then(({ data }) => setLog(((data as { id: string; action: string; at: string; snapshot: string | Entry }[]) ?? []).map((l) => ({ ...l, snapshot: typeof l.snapshot === "string" ? JSON.parse(l.snapshot) : l.snapshot }))));
+  }, [entry.id, entry.workspace_id, canManage]);
   const mine = entry.created_by === profile.id && (!entry.claim_status || entry.claim_status === "submitted");
   const editable = canManage || (canWrite && mine);
 
   async function del() {
     if (!confirm("Delete this entry and its images?")) return;
     const files = [entry.bill_path, entry.payment_proof_path].filter(Boolean) as string[];
-    const { error } = await supabase.from("entries").delete().eq("id", entry.id);
+    const { error } = await db.from("entries").delete().eq("id", entry.id);
     if (error) return alert(error.message);
-    if (files.length) await supabase.storage.from("receipts").remove(files);
+    if (files.length) await db.storage.from("receipts").remove(files);
     onChanged();
   }
   const row = (k: string, v: React.ReactNode) => <div className="flex justify-between gap-4 border-b py-1.5 text-sm"><span className="text-slate-500">{k}</span><span className="text-right font-medium">{v || "—"}</span></div>;

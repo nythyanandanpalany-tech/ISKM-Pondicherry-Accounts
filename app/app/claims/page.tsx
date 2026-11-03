@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import { toExcel, toCsv } from "@/lib/export";
 import { useAuth } from "@/components/AuthProvider";
@@ -13,7 +13,7 @@ export default function Claims() {
   const { ws, canManage, canDownload, catName, itemName, personName, money } = useWs();
   const [rows, setRows] = useState<Entry[]>([]); const [who, setWho] = useState<string | null>(null);
   const load = useCallback(async () => {
-    const { data } = await supabase.from("entries").select("*").eq("workspace_id", ws.id).not("claim_status", "is", null).order("entry_date", { ascending: false });
+    const { data } = await db.from("entries").select("*").eq("workspace_id", ws.id).not("claim_status", "is", null).order("entry_date", { ascending: false });
     setRows((data as Entry[]) ?? []);
   }, [ws.id]);
   useEffect(() => { load(); }, [load]);
@@ -24,12 +24,12 @@ export default function Claims() {
   pending.forEach((r) => balances.set(r.person_id ?? "", (balances.get(r.person_id ?? "") ?? 0) + r.amount));
   const list = who === null ? rows : rows.filter((r) => (r.person_id ?? "") === who);
   async function setStatus(r: Entry, s: "submitted" | "approved" | "settled") {
-    const { error } = await supabase.from("entries").update({ claim_status: s, claim_settled_at: s === "settled" ? new Date().toISOString() : null }).eq("id", r.id);
+    const { error } = await db.from("entries").update({ claim_status: s, claim_settled_at: s === "settled" ? new Date().toISOString() : null }).eq("id", r.id);
     if (error) alert(error.message); load();
   }
   async function settleAll(person: string) {
     if (!confirm("Mark all pending claims of this member as settled?")) return;
-    await supabase.from("entries").update({ claim_status: "settled", claim_settled_at: new Date().toISOString() }).eq("workspace_id", ws.id).neq("claim_status", "settled").not("claim_status", "is", null).eq("person_id", person);
+    await db.from("entries").update({ claim_status: "settled", claim_settled_at: new Date().toISOString() }).eq("workspace_id", ws.id).neq("claim_status", "settled").not("claim_status", "is", null).eq("person_id", person);
     load();
   }
   const badge = (s: string) => <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${s === "settled" ? "bg-emerald-100 text-emerald-700" : s === "approved" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}>{s}</span>;

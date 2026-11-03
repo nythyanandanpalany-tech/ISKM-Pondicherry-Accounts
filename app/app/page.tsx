@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import type { Entry } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
@@ -18,8 +18,8 @@ export default function Dashboard() {
   const storageUsed = useStorageUsage(canManage);
   const [rows, setRows] = useState<Entry[]>([]); const [open, setOpen] = useState(false); const [unmatched, setUnmatched] = useState(0); const [more, setMore] = useState(15);
   const load = () => {
-    supabase.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000).then(({ data }) => setRows((data as Entry[]) ?? []));
-    if (canManage) supabase.from("bank_transactions").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).is("matched_entry_id", null).then(({ count }) => setUnmatched(count ?? 0));
+    db.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000).then(({ data }) => setRows((data as Entry[]) ?? []));
+    if (canManage) db.from("bank_transactions").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).is("matched_entry_id", null).then(({ count }) => setUnmatched(count ?? 0));
   };
   useEffect(load, [ws.id, canManage]);
 

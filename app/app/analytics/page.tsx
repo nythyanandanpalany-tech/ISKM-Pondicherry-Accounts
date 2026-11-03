@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { compact } from "@/lib/format";
 import { useAuth } from "@/components/AuthProvider";
 import type { Entry } from "@/lib/types";
@@ -23,7 +23,7 @@ export default function Analytics() {
   const [fmt, setFmt] = useState<"exact" | "k">("exact");
   const money = (n: number) => (advanced && fmt === "k" ? `${ws.currency}${compact(n)}` : exact(n));
   const [rows, setRows] = useState<Entry[]>([]); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [cat, setCat] = useState("");
-  useEffect(() => { supabase.from("entries").select("*").eq("workspace_id", ws.id).limit(5000).then(({ data }) => setRows((data as Entry[]) ?? [])); }, [ws.id]);
+  useEffect(() => { db.from("entries").select("*").eq("workspace_id", ws.id).limit(5000).then(({ data }) => setRows((data as Entry[]) ?? [])); }, [ws.id]);
   const f = useMemo(() => rows.filter((r) => (!from || r.entry_date >= from) && (!to || r.entry_date <= to) && (!cat || r.category_id === cat)), [rows, from, to, cat]);
   const grp = (list: Entry[], key: (r: Entry) => string) => { const m = new Map<string, number>(); list.forEach((r) => m.set(key(r), (m.get(key(r)) ?? 0) + r.amount)); return [...m.entries()]; };
   const exp = f.filter((r) => r.type === "expense"), inc = f.filter((r) => r.type === "income");

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Papa from "papaparse";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy, num, parseDate, today } from "@/lib/format";
 import type { Txn } from "@/lib/types";
 import { useWs } from "@/components/WorkspaceProvider";
@@ -15,7 +15,7 @@ export default function Bank() {
   const [txns, setTxns] = useState<Txn[]>([]); const [msg, setMsg] = useState("");
   const [manual, setManual] = useState({ txn_date: today(), description: "", reference: "", amount: "", direction: "debit" });
   const load = useCallback(async () => {
-    const { data } = await supabase.from("bank_transactions").select("*").eq("workspace_id", ws.id).order("txn_date", { ascending: false }).limit(1000);
+    const { data } = await db.from("bank_transactions").select("*").eq("workspace_id", ws.id).order("txn_date", { ascending: false }).limit(1000);
     setTxns((data as Txn[]) ?? []);
   }, [ws.id]);
   useEffect(() => { load(); }, [load]);
@@ -35,13 +35,13 @@ export default function Bank() {
         return amount ? [{ workspace_id: ws.id, txn_date: d, description: cDesc ? r[cDesc] : null, reference: cRef ? r[cRef] : null, amount, direction }] : [];
       });
       if (!out.length) return setMsg("No valid rows found.");
-      const { error } = await supabase.from("bank_transactions").insert(out);
+      const { error } = await db.from("bank_transactions").insert(out);
       setMsg(error ? error.message : `Imported ${out.length} transactions.`); load();
     } });
   }
   async function addManual(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("bank_transactions").insert({ ...manual, workspace_id: ws.id, amount: parseFloat(manual.amount) });
+    const { error } = await db.from("bank_transactions").insert({ ...manual, workspace_id: ws.id, amount: parseFloat(manual.amount) });
     if (error) return setMsg(error.message);
     setManual({ ...manual, description: "", reference: "", amount: "" }); load();
   }
@@ -65,9 +65,9 @@ export default function Bank() {
         <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Narration</th><th>Ref</th><th className="text-right">Amount</th><th className="px-3">Matched</th><th /></tr></thead>
         <tbody>{txns.map((t) => (<tr key={t.id} className="border-t"><td className="p-3 whitespace-nowrap">{dmy(t.txn_date)}</td><td className="max-w-xs truncate">{t.description}</td><td>{t.reference}</td>
           <td className={`text-right font-medium whitespace-nowrap ${t.direction === "credit" ? "text-emerald-600" : ""}`}>{t.direction === "credit" ? "+" : "−"}{money(t.amount)}</td>
-          <td className="px-3 text-center">{t.matched_entry_id ? "🔗" : "—"}</td><td><button className={btnDanger} onClick={async () => { await supabase.from("bank_transactions").delete().eq("id", t.id); load(); }}>×</button></td></tr>))}
+          <td className="px-3 text-center">{t.matched_entry_id ? "🔗" : "—"}</td><td><button className={btnDanger} onClick={async () => { await db.from("bank_transactions").delete().eq("id", t.id); load(); }}>×</button></td></tr>))}
           {!txns.length && <tr><td colSpan={6} className="p-6 text-center text-slate-400">No transactions yet.</td></tr>}</tbody></table></div>
-      <button className={btnGhost} onClick={async () => { if (confirm("Delete ALL unmatched transactions?")) { await supabase.from("bank_transactions").delete().eq("workspace_id", ws.id).is("matched_entry_id", null); load(); } }}>Clear unmatched</button>
+      <button className={btnGhost} onClick={async () => { if (confirm("Delete ALL unmatched transactions?")) { await db.from("bank_transactions").delete().eq("workspace_id", ws.id).is("matched_entry_id", null); load(); } }}>Clear unmatched</button>
     </div>
   );
 }

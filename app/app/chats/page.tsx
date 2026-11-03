@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import type { ChatMsg, ChatThread } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
 import { useWs } from "@/components/WorkspaceProvider";
@@ -20,38 +20,38 @@ export default function Chats() {
   const bottom = useRef<HTMLDivElement>(null);
 
   const loadThreads = useCallback(async () => {
-    await supabase.rpc("ensure_workspace_thread", { p_ws: ws.id });
-    const { data: th } = await supabase.from("chat_threads").select("*").or(`workspace_id.eq.${ws.id},kind.neq.workspace`);
+    const { data: th, error: thErr } = await db.rpc("list_chat_threads", { p_ws: ws.id });
+    if (thErr) { setMsg(thErr.message); return; }
     const list = ((th as ChatThread[]) ?? []).filter((t) => t.kind !== "workspace" || t.workspace_id === ws.id);
     const ids = list.map((t) => t.id);
     const [{ data: cm }, { data: lm }] = await Promise.all([
-      supabase.from("chat_members").select("thread_id,user_id,last_read_at").in("thread_id", ids),
-      supabase.from("chat_messages").select("*").in("thread_id", ids).order("created_at", { ascending: false }).limit(300),
+      db.from("chat_members").select("thread_id,user_id,last_read_at").in("thread_id", ids),
+      db.from("chat_messages").select("*").in("thread_id", ids).order("created_at", { ascending: false }).limit(300),
     ]);
     const mm = new Map<string, string[]>(), rd = new Map<string, string>();
     ((cm as { thread_id: string; user_id: string; last_read_at: string }[]) ?? []).forEach((r) => { mm.set(r.thread_id, [...(mm.get(r.thread_id) ?? []), r.user_id]); if (r.user_id === profile.id) rd.set(r.thread_id, r.last_read_at); });
     const lastMap = new Map<string, ChatMsg>(), un = new Map<string, number>();
     ((lm as ChatMsg[]) ?? []).forEach((m) => { if (!lastMap.has(m.thread_id)) lastMap.set(m.thread_id, m); if (m.sender_id !== profile.id && m.created_at > (rd.get(m.thread_id) ?? "9")) un.set(m.thread_id, (un.get(m.thread_id) ?? 0) + 1); });
     const uids = [...new Set([...(cm as { user_id: string }[] ?? []).map((r) => r.user_id), ...(lm as ChatMsg[] ?? []).map((m) => m.sender_id).filter(Boolean) as string[]])];
-    const { data: pr } = uids.length ? await supabase.from("profiles").select("id,full_name,username").in("id", uids) : { data: [] };
+    const { data: pr } = uids.length ? await db.from("profiles").select("id,full_name,username").in("id", uids) : { data: [] };
     setProfs(new Map(((pr as Prof[]) ?? []).map((p) => [p.id, p]))); setMembers(mm); setLast(lastMap); setUnread(un);
     setThreads(list.sort((a, b) => (a.kind === "workspace" ? -1 : b.kind === "workspace" ? 1 : (lastMap.get(b.id)?.created_at ?? "").localeCompare(lastMap.get(a.id)?.created_at ?? ""))));
     setSel((cur) => cur ?? list.find((t) => t.kind === "workspace")?.id ?? null);
   }, [ws.id, profile.id]);
   useEffect(() => { loadThreads(); }, [loadThreads]);
 
-  const markRead = useCallback(async (t: string) => { await supabase.from("chat_members").upsert({ thread_id: t, user_id: profile.id, last_read_at: new Date().toISOString() }); window.dispatchEvent(new Event("ef-chat-read")); }, [profile.id]);
+  const markRead = useCallback(async (t: string) => { await db.from("chat_members").upsert({ thread_id: t, user_id: profile.id, last_read_at: new Date().toISOString() }); window.dispatchEvent(new Event("ef-chat-read")); }, [profile.id]);
   const loadMsgs = useCallback(async (t: string) => {
-    const { data } = await supabase.from("chat_messages").select("*").eq("thread_id", t).order("created_at", { ascending: true }).limit(300);
+    const { data } = await db.from("chat_messages").select("*").eq("thread_id", t).order("created_at", { ascending: true }).limit(300);
     setMsgs((data as ChatMsg[]) ?? []);
     setTimeout(() => bottom.current?.scrollIntoView({ block: "end" }), 50);
   }, []);
   useEffect(() => {
     if (!sel) return;
     loadMsgs(sel).then(() => markRead(sel).then(() => setUnread((u) => { const n = new Map(u); n.delete(sel); return n; })));
-    const ch = supabase.channel(`thread-${sel}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `thread_id=eq.${sel}` }, () => { loadMsgs(sel); markRead(sel); loadThreads(); }).subscribe();
+    const ch = db.channel(`thread-${sel}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `thread_id=eq.${sel}` }, () => { loadMsgs(sel); markRead(sel); loadThreads(); }).subscribe();
     const poll = setInterval(() => loadMsgs(sel), 15000);
-    return () => { supabase.removeChannel(ch); clearInterval(poll); };
+    return () => { db.removeChannel(ch); clearInterval(poll); };
   }, [sel, loadMsgs, markRead, loadThreads]);
 
   const nameOf = (id: string | null) => { const p = id ? profs.get(id) : null; return p ? p.full_name || (p.username ? "@" + p.username : "User") : "Former member"; };
@@ -61,13 +61,13 @@ export default function Chats() {
 
   async function send(e: React.FormEvent) {
     e.preventDefault(); const body = text.trim(); if (!body || !sel) return; setText("");
-    const { error } = await supabase.from("chat_messages").insert({ thread_id: sel, body, sender_id: profile.id });
+    const { error } = await db.from("chat_messages").insert({ thread_id: sel, body, sender_id: profile.id });
     if (error) { setText(body); return alert(error.message); }
     loadMsgs(sel); markRead(sel); loadThreads();
   }
   async function startPrivate(e: React.FormEvent) {
     e.preventDefault(); setMsg("");
-    const { data, error } = await supabase.rpc("start_private_chat", { p_username: find });
+    const { data, error } = await db.rpc("start_private_chat", { p_username: find });
     if (error) return setMsg(error.message); setFind(""); await loadThreads(); setSel(data as string);
   }
   return (
@@ -107,7 +107,7 @@ function GroupModal({ onClose, onCreated }: { onClose: () => void; onCreated: (i
   const [title, setTitle] = useState(""); const [names, setNames] = useState(""); const [err, setErr] = useState("");
   return (
     <Modal title="Create group" onClose={onClose}>
-      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); const { data, error } = await supabase.rpc("create_group", { p_title: title.trim(), p_usernames: names.split(/[,\s]+/).filter(Boolean) }); if (error) return setErr(error.message); onCreated(data as string); }}>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); const { data, error } = await db.rpc("create_group", { p_title: title.trim(), p_usernames: names.split(/[,\s]+/).filter(Boolean) }); if (error) return setErr(error.message); onCreated(data as string); }}>
         <input className={input} placeholder="Group name" value={title} onChange={(e) => setTitle(e.target.value)} required />
         <input className={input} placeholder="@usernames, separated by commas" value={names} onChange={(e) => setNames(e.target.value)} required />
         {err && <p className="text-sm text-red-600">{err}</p>}<div className="flex justify-end gap-2"><button type="button" className={btnGhost} onClick={onClose}>Cancel</button><button className={btnPrimary}>Create</button></div></form>

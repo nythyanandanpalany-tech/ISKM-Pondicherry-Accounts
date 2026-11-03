@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Files live at <workspaceId>/<random>.<ext>
+    match /{w}/{file} {
+      allow read: if request.auth != null && firestore.exists(/databases/(default)/documents/members/$(w + '_' + request.auth.uid));
+      allow create: if request.auth != null
+        && firestore.get(/databases/(default)/documents/members/$(w + '_' + request.auth.uid)).data.role in ['owner', 'admin', 'editor']
+        && request.resource.size < 3 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow delete: if request.auth != null
+        && firestore.get(/databases/(default)/documents/members/$(w + '_' + request.auth.uid)).data.role in ['owner', 'admin', 'editor'];
+    }
+  }
+}

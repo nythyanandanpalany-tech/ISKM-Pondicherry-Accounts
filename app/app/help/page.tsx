@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { useWs } from "@/components/WorkspaceProvider";
 import { input, btnPrimary } from "@/components/ui";
 
@@ -22,7 +22,7 @@ function Inner() {
   const [kind, setKind] = useState("feature"); const [done, setDone] = useState("");
   async function send(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const d = new FormData(e.currentTarget);
-    const { error } = await supabase.from("feedback").insert({ kind: tab === "support" ? "support" : kind, subject: String(d.get("s")), body: String(d.get("m")), workspace_id: ws.id });
+    const { error } = await db.from("feedback").insert({ kind: tab === "support" ? "support" : kind, subject: String(d.get("s")), body: String(d.get("m")), workspace_id: ws.id });
     if (error) return alert(error.message); (e.target as HTMLFormElement).reset(); setDone("Thank you — your message was sent.");
   }
   return (

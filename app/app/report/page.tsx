@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import { dmy, today } from "@/lib/format";
 import type { Entry } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
@@ -16,8 +16,8 @@ export default function Report() {
   const [date, setDate] = useState(today()); const [rows, setRows] = useState<Entry[]>([]); const [mrows, setMrows] = useState<Entry[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    supabase.from("entries").select("*").eq("workspace_id", ws.id).eq("entry_date", date).then(({ data }) => setRows((data as Entry[]) ?? []));
-    supabase.from("entries").select("*").eq("workspace_id", ws.id).eq("type", "expense").gte("entry_date", date.slice(0, 7) + "-01").lte("entry_date", date).then(({ data }) => setMrows((data as Entry[]) ?? []));
+    db.from("entries").select("*").eq("workspace_id", ws.id).eq("entry_date", date).then(({ data }) => setRows((data as Entry[]) ?? []));
+    db.from("entries").select("*").eq("workspace_id", ws.id).eq("type", "expense").gte("entry_date", date.slice(0, 7) + "-01").lte("entry_date", date).then(({ data }) => setMrows((data as Entry[]) ?? []));
   }, [ws.id, date]);
   const shift = (d: number) => setDate(new Date(new Date(date).getTime() + d * 86400000).toISOString().slice(0, 10));
   const exp = rows.filter((r) => r.type === "expense"), inc = rows.filter((r) => r.type === "income");
