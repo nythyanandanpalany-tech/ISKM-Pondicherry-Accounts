@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@layer base {
+  *, ::after, ::before { border-color: var(--color-slate-200); }
 }
+body { background: #f8fafc; font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif; }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ---- Dark theme: remaps the light utility classes used across the app ---- */
+html.dark body { background: #0b1120; color: #e2e8f0; }
+html.dark *, html.dark ::after, html.dark ::before { border-color: #1f2937; }
+html.dark .bg-white { background-color: #111827; }
+html.dark .bg-slate-50 { background-color: #0b1120; }
+html.dark .bg-slate-100 { background-color: #1f2937; }
+html.dark .text-slate-800, html.dark .text-slate-700 { color: #e2e8f0; }
+html.dark .text-slate-600 { color: #cbd5e1; }
+html.dark .text-slate-500, html.dark .text-slate-400 { color: #94a3b8; }
+html.dark .border-slate-200, html.dark .border-slate-300 { border-color: #334155; }
+html.dark input, html.dark select, html.dark textarea { background-color: #0f172a; color: #e2e8f0; border-color: #334155; }
+html.dark .bg-indigo-50 { background-color: #1e1b4b; } html.dark .text-indigo-700 { color: #a5b4fc; }
+html.dark .bg-amber-50, html.dark .bg-amber-100 { background-color: #422006; } html.dark .text-amber-700, html.dark .text-amber-800 { color: #fcd34d; }
+html.dark .bg-emerald-50, html.dark .bg-emerald-100 { background-color: #052e16; } html.dark .text-emerald-700, html.dark .text-emerald-800 { color: #6ee7b7; }
+html.dark .bg-red-100 { background-color: #450a0a; } html.dark .text-red-700 { color: #fca5a5; }
+html.dark .bg-sky-100 { background-color: #082f49; } html.dark .text-sky-700 { color: #7dd3fc; }
+html.dark .hover\:bg-slate-50:hover, html.dark .hover\:bg-slate-100:hover { background-color: #1f2937; }
+html.dark .border-red-200 { border-color: #7f1d1d; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ---- Printing vouchers: show only the voucher sheets ---- */
+.voucher-root { display: none; }
+@media print {
+  body.printing-voucher > *:not(.voucher-root) { display: none !important; }
+  body.printing-voucher .voucher-root { display: block !important; }
+  .voucher-page { break-inside: avoid; page-break-inside: avoid; }
 }

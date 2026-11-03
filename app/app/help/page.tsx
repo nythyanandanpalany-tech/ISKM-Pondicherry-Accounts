@@ -1,7 +1,9 @@
 "use client";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { input } from "@/components/ui";
+import { supabase } from "@/lib/supabase";
+import { useWs } from "@/components/WorkspaceProvider";
+import { input, btnPrimary } from "@/components/ui";
 
 const FAQ: [string, [string, string][]][] = [
   ["Getting started", [["What is a workspace?", "One set of books, e.g. your temple’s accounts. You can belong to several and switch from the top bar."], ["How do I add an entry?", "Press + Add entry on the Dashboard or Ledger. Choose Expense or Income and fill the form."]]],
@@ -16,6 +18,13 @@ const FAQ: [string, [string, string][]][] = [
 function Inner() {
   const [tab, setTab] = useState(useSearchParams().get("tab") === "privacy" ? "privacy" : "help");
   const [q, setQ] = useState("");
+  const { ws } = useWs();
+  const [kind, setKind] = useState("feature"); const [done, setDone] = useState("");
+  async function send(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); const d = new FormData(e.currentTarget);
+    const { error } = await supabase.from("feedback").insert({ kind: tab === "support" ? "support" : kind, subject: String(d.get("s")), body: String(d.get("m")), workspace_id: ws.id });
+    if (error) return alert(error.message); (e.target as HTMLFormElement).reset(); setDone("Thank you — your message was sent.");
+  }
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex gap-2 text-sm">{["help", "support", "suggestions", "privacy"].map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 capitalize ${tab === t ? "bg-indigo-600 text-white" : "border bg-white"}`}>{t}</button>)}</div>
@@ -23,11 +32,11 @@ function Inner() {
         {FAQ.map(([sec, qs]) => { const f = qs.filter(([a, b]) => `${a} ${b}`.toLowerCase().includes(q.toLowerCase())); return f.length ? (
           <section key={sec} className="rounded-xl border bg-white p-4"><h2 className="mb-2 font-semibold">{sec}</h2>{f.map(([a, b]) => <details key={a} className="border-t py-2 text-sm"><summary className="cursor-pointer font-medium">{a}</summary><p className="mt-1 text-slate-600">{b}</p></details>)}</section>) : null; })}</>)}
       {(tab === "support" || tab === "suggestions") && (
-        <form className="space-y-3 rounded-xl border bg-white p-4" onSubmit={(e) => { e.preventDefault(); const d = new FormData(e.currentTarget); location.href = `mailto:?subject=${encodeURIComponent(`[${tab}] ${d.get("s")}`)}&body=${encodeURIComponent(String(d.get("m")))}`; }}>
-          <h2 className="font-semibold capitalize">{tab === "support" ? "Customer support" : "Suggestions"}</h2>
-          <p className="text-xs text-slate-500">Opens your email app. Set the support address in app/app/help/page.tsx before launch.</p>
-          <input name="s" className={input} placeholder="Subject" required /><textarea name="m" className={input} rows={5} maxLength={4000} placeholder="Message" required />
-          <button className="rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white">Send</button></form>)}
+        <form className="space-y-3 rounded-xl border bg-white p-4" onSubmit={send}>
+          <h2 className="font-semibold">{tab === "support" ? "Customer support" : "Suggestions"}</h2>
+          {tab === "suggestions" && <div className="flex gap-2 text-sm">{[["feature", "Feature request"], ["interface", "Interface improvement"], ["bug", "Bug report"]].map(([k, l]) => <button type="button" key={k} onClick={() => setKind(k)} className={`rounded-full px-3 py-1 ${kind === k ? "bg-indigo-600 text-white" : "border"}`}>{l}</button>)}</div>}
+          <input name="s" className={input} placeholder={tab === "support" ? "Subject" : "One-line headline"} required maxLength={200} /><textarea name="m" className={input} rows={5} maxLength={4000} placeholder="Details (max 4000 characters)" required />
+          <button className={btnPrimary}>{tab === "support" ? "Send message" : "Send suggestion"}</button>{done && <p className="text-sm text-emerald-700">{done}</p>}</form>)}
       {tab === "privacy" && (<section className="space-y-2 rounded-xl border bg-white p-4 text-sm text-slate-700"><h2 className="font-semibold">Privacy</h2>
         <p><b>Kept:</b> your entries, categories, people, uploaded bills and payment screenshots, and bank rows you import.</p>
         <p><b>Not kept:</b> bank passwords or card numbers — the app never asks for them.</p>

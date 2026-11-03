@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { dmy } from "@/lib/format";
-import { toExcel } from "@/lib/export";
+import { toExcel, toCsv } from "@/lib/export";
 import { MODES, type Entry } from "@/lib/types";
+import { useAuth } from "@/components/AuthProvider";
 import { useWs } from "@/components/WorkspaceProvider";
+import Vouchers from "@/components/Vouchers";
 import EntryForm from "@/components/EntryForm";
 import EntryDetail from "@/components/EntryDetail";
 import { btnGhost, btnPrimary, input } from "@/components/ui";
@@ -18,13 +20,15 @@ const SORTS: Record<string, (a: Entry, b: Entry) => number> = {
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 export default function Ledger() {
+  const { advanced } = useAuth();
   const { ws, categories, items, people, canWrite, canManage, canDownload, catName, itemName, personName, money } = useWs();
   const [rows, setRows] = useState<Entry[]>([]);
   const [matched, setMatched] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState(""); const [period, setPeriod] = useState("month"); const [sort, setSort] = useState("Date: newest");
   const [showF, setShowF] = useState(false);
-  const [fl, setFl] = useState({ from: "", to: "", category: "", item: "", person: "", mode: "", type: "", claim: "", gap: "" });
+  const [fl, setFl] = useState({ from: "", to: "", category: "", item: "", person: "", mode: "", type: "", claim: "", gap: "", fund: "", benef: "" });
+  const [vouchers, setVouchers] = useState(false);
   const [form, setForm] = useState<{ entry?: Entry } | null>(null); const [detail, setDetail] = useState<Entry | null>(null);
 
   const load = useCallback(async () => {
@@ -49,6 +53,8 @@ export default function Ledger() {
       if (fl.category && r.category_id !== fl.category) return false; if (fl.item && r.item_id !== fl.item) return false;
       if (fl.person && r.person_id !== fl.person) return false; if (fl.mode && r.payment_mode !== fl.mode) return false;
       if (fl.type && r.type !== fl.type) return false;
+      if (fl.fund && !(r.fund_source ?? "").toLowerCase().includes(fl.fund.toLowerCase())) return false;
+      if (fl.benef && !(r.beneficiary ?? "").toLowerCase().includes(fl.benef.toLowerCase())) return false;
       if (fl.claim && (fl.claim === "none" ? r.claim_status : r.claim_status !== fl.claim)) return false;
       if (fl.gap === "nobill" && (r.bill_path || !r.receipt_available)) return false;
       if (fl.gap === "noproof" && (r.payment_proof_path || !["UPI", "Bank Transfer", "Card"].includes(r.payment_mode))) return false;
@@ -69,6 +75,8 @@ export default function Ledger() {
         <div className="flex gap-2">
           {canDownload && <button className={btnGhost} onClick={() => toExcel(shown, { cat: catName, item: itemName, person: personName })}>Excel</button>}
           {canDownload && <button className={btnGhost} onClick={() => window.print()}>PDF</button>}
+          {canDownload && <button className={btnGhost} onClick={() => { if (!shown.some((r) => r.type === "expense" && !r.bill_path)) return alert("Every expense in this view already has a bill photo."); setVouchers(true); }}>Vouchers</button>}
+          {canDownload && advanced && <button className={btnGhost} onClick={() => toCsv(shown, { cat: catName, item: itemName, person: personName })}>CSV</button>}
           {canWrite && <button className={btnPrimary} onClick={() => setForm({})}>+ Add entry</button>}
         </div>
       </div>
@@ -90,7 +98,9 @@ export default function Ledger() {
           <div><div className="text-xs text-slate-500">Claim status</div><select className={input} value={fl.claim} onChange={fset("claim")}><option value="">All</option><option value="none">Direct (no claim)</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="settled">Settled</option></select></div>
           <div className="sm:col-span-2"><div className="text-xs text-slate-500">Documents</div><select className={input} value={fl.gap} onChange={fset("gap")}>
             <option value="">All</option><option value="nobill">Bill photo missing</option><option value="noproof">Payment screenshot missing (UPI/bank)</option>{canManage && <option value="unmatched">Not matched to bank</option>}</select></div>
-          <button className="text-sm text-indigo-600" onClick={() => setFl({ from: "", to: "", category: "", item: "", person: "", mode: "", type: "", claim: "", gap: "" })}>Clear</button>
+          {advanced && <div><div className="text-xs text-slate-500">Fund source</div><input className={input} value={fl.fund} onChange={fset("fund")} /></div>}
+          {advanced && <div><div className="text-xs text-slate-500">Beneficiary</div><input className={input} value={fl.benef} onChange={fset("benef")} /></div>}
+          <button className="text-sm text-indigo-600" onClick={() => setFl({ from: "", to: "", category: "", item: "", person: "", mode: "", type: "", claim: "", gap: "", fund: "", benef: "" })}>Clear</button>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -118,6 +128,7 @@ export default function Ledger() {
           </tbody>
         </table>
       </div>
+      {vouchers && <Vouchers entries={shown.filter((r) => r.type === "expense" && !r.bill_path)} onClose={() => setVouchers(false)} />}
       {form && <EntryForm entry={form.entry} onClose={() => setForm(null)} onSaved={() => { setForm(null); setDetail(null); load(); }} />}
       {detail && !form && <EntryDetail entry={detail} onClose={() => setDetail(null)} onEdit={() => setForm({ entry: detail })} onChanged={() => { setDetail(null); load(); }} />}
     </div>

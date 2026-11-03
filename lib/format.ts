@@ -28,3 +28,26 @@ export const num = (v: unknown) => {
 };
 export const daysBetween = (a: string, b: string) =>
   Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
+
+/** 1.2k / 1.5L / 2.3Cr style (Indian) */
+export const compact = (n: number) => {
+  const a = Math.abs(n), sign = n < 0 ? "-" : "";
+  const f = (v: number, u: string) => `${sign}${(Math.round(v * 10) / 10).toString()}${u}`;
+  if (a >= 1e7) return f(a / 1e7, "Cr"); if (a >= 1e5) return f(a / 1e5, "L"); if (a >= 1e3) return f(a / 1e3, "k");
+  return `${sign}${a}`;
+};
+const ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+const below100 = (n: number) => (n < 20 ? ONES[n] : TENS[Math.floor(n / 10)] + (n % 10 ? " " + ONES[n % 10] : ""));
+const below1000 = (n: number) => (n >= 100 ? ONES[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " " + below100(n % 100) : "") : below100(n));
+/** 12345.5 -> "Twelve Thousand Three Hundred Forty Five Rupees and Fifty Paise Only" */
+export function rupeesInWords(amount: number): string {
+  const r = Math.floor(amount), p = Math.round((amount - r) * 100);
+  const parts: string[] = []; let n = r;
+  for (const [div, name] of [[10000000, "Crore"], [100000, "Lakh"], [1000, "Thousand"]] as [number, string][]) {
+    if (n >= div) { parts.push(below1000(Math.floor(n / div)) + " " + name); n %= div; }
+  }
+  if (n > 0) parts.push(below1000(n));
+  const rs = parts.length ? parts.join(" ") : "Zero";
+  return `${rs} Rupees${p ? " and " + below100(p) + " Paise" : ""} Only`;
+}

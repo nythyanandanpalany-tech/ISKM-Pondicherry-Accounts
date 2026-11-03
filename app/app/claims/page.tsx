@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { dmy } from "@/lib/format";
-import { toExcel } from "@/lib/export";
+import { toExcel, toCsv } from "@/lib/export";
+import { useAuth } from "@/components/AuthProvider";
 import type { Entry } from "@/lib/types";
 import { useWs } from "@/components/WorkspaceProvider";
 import { btnGhost, btnPrimary } from "@/components/ui";
 
 export default function Claims() {
+  const { advanced } = useAuth();
   const { ws, canManage, canDownload, catName, itemName, personName, money } = useWs();
   const [rows, setRows] = useState<Entry[]>([]); const [who, setWho] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -34,7 +36,8 @@ export default function Claims() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between"><h1 className="text-xl font-bold">Claims</h1>
-        {canDownload && <button className={btnGhost} onClick={() => toExcel(rows, { cat: catName, item: itemName, person: personName }, "claims.xlsx")}>Excel</button>}</div>
+        <div className="flex gap-2">{canDownload && <button className={btnGhost} onClick={() => toExcel(rows, { cat: catName, item: itemName, person: personName }, "claims.xlsx")}>Excel</button>}
+          {canDownload && advanced && <button className={btnGhost} onClick={() => toCsv(rows, { cat: catName, item: itemName, person: personName }, "claims.csv")}>CSV</button>}</div></div>
       <p className="text-sm text-slate-500">Expenses paid from someone’s own pocket. Flow: submitted → approved → settled (reimbursed).</p>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[["Pending payout", money(by("submitted") + by("approved"))], ["Submitted", money(by("submitted"))], ["Approved", money(by("approved"))], ["Settled", money(by("settled"))]].map(([k, v]) => (

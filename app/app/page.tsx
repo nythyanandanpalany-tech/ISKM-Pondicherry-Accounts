@@ -8,11 +8,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { useWs } from "@/components/WorkspaceProvider";
 import EntryForm from "@/components/EntryForm";
 import { btnGhost, btnPrimary } from "@/components/ui";
+import { toExcel } from "@/lib/export";
 import Gauge from "@/components/Gauge";
 
 export default function Dashboard() {
-  const { profile } = useAuth();
-  const { ws, categories, items, canWrite, canManage, catName, itemName, personName, money } = useWs();
+  const { profile, advanced } = useAuth();
+  const { ws, categories, items, canWrite, canManage, canDownload, catName, itemName, personName, money } = useWs();
   const [rows, setRows] = useState<Entry[]>([]); const [open, setOpen] = useState(false); const [unmatched, setUnmatched] = useState(0); const [more, setMore] = useState(15);
   const load = () => {
     supabase.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000).then(({ data }) => setRows((data as Entry[]) ?? []));
@@ -52,7 +53,7 @@ export default function Dashboard() {
           {!gauges.length && <div className="text-sm text-slate-400">No limits set. {canManage ? "Set a monthly budget or category limits in Settings." : ""}</div>}</div>
       </div>
       <div className="rounded-xl border bg-white">
-        <div className="flex items-center justify-between border-b p-3 font-semibold">Recent activity <Link href="/app/ledger" className="text-sm font-normal text-indigo-600">Ledger</Link></div>
+        <div className="flex items-center justify-between border-b p-3 font-semibold">Recent activity <span className="flex items-center gap-3 text-sm font-normal">{advanced && canDownload && <button className="text-indigo-600" onClick={() => toExcel(rows.slice(0, more), { cat: catName, item: itemName, person: personName }, "recent.xlsx")}>Excel</button>}{advanced && canWrite && <button className="text-indigo-600" onClick={() => setOpen(true)}>Add</button>}<Link href="/app/ledger" className="text-indigo-600">Ledger</Link></span></div>
         {rows.slice(0, more).map((r) => (
           <div key={r.id} className="flex items-center justify-between border-b p-3 text-sm last:border-0">
             <div><div className="font-medium">{catName(r.category_id) || r.type}{r.item_id && ` · ${itemName(r.item_id)}`}</div>

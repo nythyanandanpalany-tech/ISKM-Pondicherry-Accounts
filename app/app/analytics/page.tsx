@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { compact } from "@/lib/format";
+import { useAuth } from "@/components/AuthProvider";
 import type { Entry } from "@/lib/types";
 import { useWs } from "@/components/WorkspaceProvider";
 import { btnGhost, input } from "@/components/ui";
@@ -16,7 +18,10 @@ function Bars({ title, data, money, color = "bg-indigo-500" }: { title: string; 
 }
 
 export default function Analytics() {
-  const { ws, canDownload, catName, itemName, personName, categories, money } = useWs();
+  const { advanced } = useAuth();
+  const { ws, canDownload, catName, itemName, personName, categories, money: exact } = useWs();
+  const [fmt, setFmt] = useState<"exact" | "k">("exact");
+  const money = (n: number) => (advanced && fmt === "k" ? `${ws.currency}${compact(n)}` : exact(n));
   const [rows, setRows] = useState<Entry[]>([]); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [cat, setCat] = useState("");
   useEffect(() => { supabase.from("entries").select("*").eq("workspace_id", ws.id).limit(5000).then(({ data }) => setRows((data as Entry[]) ?? [])); }, [ws.id]);
   const f = useMemo(() => rows.filter((r) => (!from || r.entry_date >= from) && (!to || r.entry_date <= to) && (!cat || r.category_id === cat)), [rows, from, to, cat]);
@@ -27,7 +32,7 @@ export default function Analytics() {
   const months = [...new Set(f.map((r) => r.entry_date.slice(0, 7)))].sort();
   return (
     <div className="space-y-4" id="analytics">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-xl font-bold">Analytics</h1>{canDownload && <button className={btnGhost} onClick={() => window.print()}>PDF</button>}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-xl font-bold">Analytics</h1><div className="flex gap-2">{advanced && <select className={`${input} !w-auto`} value={fmt} onChange={(e) => setFmt(e.target.value as "exact" | "k")}><option value="exact">Exact</option><option value="k">Formatted (k / L / Cr)</option></select>}{canDownload && <button className={btnGhost} onClick={() => window.print()}>PDF</button>}</div></div>
       <div className="flex flex-wrap items-center gap-2 text-sm print:hidden">From <input type="date" className={`${input} !w-auto`} value={from} onChange={(e) => setFrom(e.target.value)} />
         To <input type="date" className={`${input} !w-auto`} value={to} onChange={(e) => setTo(e.target.value)} />
         <select className={`${input} !w-auto`} value={cat} onChange={(e) => setCat(e.target.value)}><option value="">All categories</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>

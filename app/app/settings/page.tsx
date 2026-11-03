@@ -6,6 +6,8 @@ import { parseDate, num } from "@/lib/format";
 import { readExcel } from "@/lib/export";
 import type { Role } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
+import { setThemePref, useThemePref, type ThemePref } from "@/components/Theme";
+import { startTour } from "@/components/Tour";
 import { useWs } from "@/components/WorkspaceProvider";
 import { btnDanger, btnGhost, btnPrimary, input } from "@/components/ui";
 
@@ -14,12 +16,15 @@ const lim = (v: string) => (v.trim() === "" ? null : parseFloat(v));
 
 export default function Settings() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, advanced, reloadProfile, signOut } = useAuth();
+  const theme = useThemePref();
+  const [alerts, setAlerts] = useState(false);
+  useEffect(() => { try { setAlerts(localStorage.getItem("ef_alerts") === "1"); } catch { /* ignore */ } }, []);
   const { ws, role, canManage, categories, items, people, members, reload, reloadWorkspaces, switchTo, workspaces, catName } = useWs();
   const [acct, setAcct] = useState({ full_name: profile.full_name ?? "", username: profile.username ?? "" });
   const [pw, setPw] = useState(""); const [msg, setMsg] = useState("");
-  const [w, setW] = useState({ name: ws.name, currency: ws.currency, date_format: ws.date_format, org_type: ws.org_type, monthly_budget: ws.monthly_budget?.toString() ?? "", primary_purchaser: ws.primary_purchaser ?? "", letterhead: ws.letterhead ?? "" });
-  useEffect(() => setW({ name: ws.name, currency: ws.currency, date_format: ws.date_format, org_type: ws.org_type, monthly_budget: ws.monthly_budget?.toString() ?? "", primary_purchaser: ws.primary_purchaser ?? "", letterhead: ws.letterhead ?? "" }), [ws]);
+  const [w, setW] = useState({ name: ws.name, currency: ws.currency, date_format: ws.date_format, org_type: ws.org_type, monthly_budget: ws.monthly_budget?.toString() ?? ""  , primary_purchaser: ws.primary_purchaser ?? "" });
+  useEffect(() => setW({ name: ws.name, currency: ws.currency, date_format: ws.date_format, org_type: ws.org_type, monthly_budget: ws.monthly_budget?.toString() ?? "", primary_purchaser: ws.primary_purchaser ?? "" }), [ws]);
   const [pName, setPName] = useState(""); const [mEmail, setMEmail] = useState(""); const [mRole, setMRole] = useState<Role>("editor");
   const [cName, setCName] = useState(""); const [cKind, setCKind] = useState<"expense" | "income">("expense"); const [iName, setIName] = useState(""); const [iCat, setICat] = useState("");
   const note = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
@@ -31,7 +36,7 @@ export default function Settings() {
   }
   async function changePw() { if (pw.length < 6) return alert("Min 6 characters"); const { error } = await supabase.auth.updateUser({ password: pw }); note(error ? error.message : "Password changed."); setPw(""); }
   async function saveWs() {
-    await run(supabase.from("workspaces").update({ name: w.name, currency: w.currency, date_format: w.date_format, org_type: w.org_type, monthly_budget: lim(w.monthly_budget), primary_purchaser: w.primary_purchaser || null, letterhead: w.letterhead || null }).eq("id", ws.id));
+    await run(supabase.from("workspaces").update({ name: w.name, currency: w.currency, date_format: w.date_format, org_type: w.org_type, monthly_budget: lim(w.monthly_budget), primary_purchaser: w.primary_purchaser || null }).eq("id", ws.id));
     await reloadWorkspaces();
   }
   async function importXlsx(file: File) {
@@ -67,7 +72,21 @@ export default function Settings() {
       <section className={card}><h2 className="font-semibold">My account</h2>
         <div className="grid gap-2 sm:grid-cols-3"><input className={input} placeholder="Full name" value={acct.full_name} onChange={(e) => setAcct({ ...acct, full_name: e.target.value })} />
           <input className={input} placeholder="@username" value={acct.username} onChange={(e) => setAcct({ ...acct, username: e.target.value })} /><button className={btnPrimary} onClick={saveAccount}>Save</button></div>
-        <div className="flex gap-2"><input className={input} type="password" placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} /><button className={btnGhost} onClick={changePw}>Change password</button></div></section>
+        <div className="flex gap-2"><input className={input} type="password" placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} /><button className={btnGhost} onClick={changePw}>Change password</button></div>
+        <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
+          <label className="text-xs">Appearance<select className={input} value={theme} onChange={(e) => setThemePref(e.target.value as ThemePref)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+          <label className="text-xs">Option view<select className={input} value={advanced ? "adv" : "std"} onChange={async (e) => { const { error } = await supabase.from("profiles").update({ advanced: e.target.value === "adv" }).eq("id", profile.id); if (error) return alert(error.message); await reloadProfile(); }}><option value="std">Standard</option><option value="adv">Advanced (fund source, beneficiary, CSV, All Bills, modules…)</option></select></label>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={alerts} onChange={async (e) => {
+            if (e.target.checked) { if (!("Notification" in window)) return alert("This browser does not support notifications."); const p = await Notification.requestPermission(); if (p !== "granted") return alert("Notifications are blocked in this browser."); }
+            try { localStorage.setItem("ef_alerts", e.target.checked ? "1" : "0"); } catch { /* ignore */ } setAlerts(e.target.checked); }} />Message alerts on this device</label>
+          <button className={btnGhost} onClick={startTour}>Show guidelines</button>
+          <button className={btnGhost} onClick={async () => { const { data, error } = await supabase.rpc("create_sample_workspace"); if (error) return alert(error.message); await reloadWorkspaces(); switchTo(data as string); note("Sample workspace added."); }}>Add sample workspace</button>
+          <button className={btnGhost} onClick={async () => { if (!confirm("Remove the sample workspace(s) you own?")) return; const { error } = await supabase.rpc("remove_sample_data"); if (error) return alert(error.message); await reloadWorkspaces(); note("Sample data removed."); router.replace("/app"); }}>Remove sample data</button>
+          <button className="text-red-600" onClick={signOut}>Sign out</button>
+          <button className="text-red-600" onClick={async () => { if (prompt("This permanently deletes your account (and workspaces only you belong to). Type DELETE to confirm.") !== "DELETE") return; const { error } = await supabase.rpc("delete_account"); if (error) return alert(error.message); await signOut(); }}>Delete my account</button>
+        </div></section>
 
       {!canManage ? (<section className={card}><p className="text-sm text-slate-500">You are <b>{role}</b> in “{ws.name}”. Only owners and admins can change workspace settings.</p>
         {role !== "owner" && <button className={btnDanger} onClick={leave}>Leave this workspace</button>}</section>) : (<>
@@ -80,8 +99,9 @@ export default function Settings() {
           <label className="text-xs">Primary purchaser / report owner<input className={input} value={w.primary_purchaser} onChange={(e) => setW({ ...w, primary_purchaser: e.target.value })} /></label>
           <label className="text-xs">Organisation type<select className={input} value={w.org_type} onChange={(e) => setW({ ...w, org_type: e.target.value })}>{["Temple", "School", "Clinic", "Company", "Housing Society", "NGO"].map((c) => <option key={c}>{c}</option>)}</select></label>
         </div>
-        <label className="block text-xs">Donation receipt letterhead (name, address, 80G / registration no.)<textarea className={input} rows={3} value={w.letterhead} onChange={(e) => setW({ ...w, letterhead: e.target.value })} /></label>
-        <button className={btnPrimary} onClick={saveWs}>Save changes</button></section>
+        <button className={btnPrimary} onClick={saveWs}>Save changes</button>
+        {advanced && <div className="border-t pt-3 text-sm"><div className="mb-1 font-medium">Modules (advanced)</div>
+          {(["store", "chats"] as const).map((k) => <label key={k} className="mr-4 inline-flex items-center gap-1 capitalize"><input type="checkbox" checked={ws.modules?.[k] !== false} onChange={async (e) => { const { error } = await supabase.from("workspaces").update({ modules: { ...ws.modules, [k]: e.target.checked } }).eq("id", ws.id); if (error) return alert(error.message); await reloadWorkspaces(); }} />{k}</label>)}</div>}</section>
 
       <section className={card}><h2 className="font-semibold">People (who paid / received from)</h2>
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); run(supabase.from("people").insert({ workspace_id: ws.id, name: pName.trim() })); setPName(""); }}>

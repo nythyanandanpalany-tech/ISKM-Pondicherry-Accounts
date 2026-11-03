@@ -43,13 +43,13 @@ function FilePick({ title, hint, required, file, existing, onFile, onClear }: {
 }
 
 export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; onClose: () => void; onSaved: () => void }) {
-  const { profile } = useAuth();
+  const { profile, advanced } = useAuth();
   const { ws, categories, items, people, reload } = useWs();
   const [type, setType] = useState<"expense" | "income">(entry?.type ?? "expense");
   const [f, setF] = useState({
     entry_date: entry?.entry_date ?? today(), amount: entry?.amount?.toString() ?? "", category_id: entry?.category_id ?? "",
     item_id: entry?.item_id ?? "", person_id: entry?.person_id ?? "", payment_mode: entry?.payment_mode ?? "Cash",
-    note: entry?.note ?? "", reference_no: entry?.reference_no ?? "", receipt_available: entry?.receipt_available ?? false,
+    note: entry?.note ?? "", fund_source: entry?.fund_source ?? "", beneficiary: entry?.beneficiary ?? "", reference_no: entry?.reference_no ?? "", receipt_available: entry?.receipt_available ?? false,
     claim: !!entry?.claim_status,
   });
   const [newPerson, setNewPerson] = useState("");
@@ -91,7 +91,7 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
       const row = {
         type, entry_date: f.entry_date, amount: parseFloat(f.amount), category_id: f.category_id || null, item_id: f.item_id || null,
         person_id, payment_mode: f.payment_mode, note: f.note.trim() || null, reference_no: f.reference_no.trim() || null,
-        receipt_available: f.receipt_available, bill_path, payment_proof_path, claim_status,
+        receipt_available: f.receipt_available, fund_source: f.fund_source.trim() || null, beneficiary: f.beneficiary.trim() || null, bill_path, payment_proof_path, claim_status,
       };
       const { error } = entry
         ? await supabase.from("entries").update(row).eq("id", entry.id)
@@ -124,10 +124,16 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
             {f.person_id === "__new" && <input className={`${input} mt-1`} placeholder="Name" value={newPerson} onChange={(e) => setNewPerson(e.target.value)} />}</div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div><label className={lbl}>{type === "income" ? "Reference No. (printed on receipt)" : "UTR / transaction ID (helps bank matching)"}</label>
+          <div><label className={lbl}>{type === "income" ? "Reference No." : "UTR / transaction ID (helps bank matching)"}</label>
             <input className={input} value={f.reference_no} onChange={set("reference_no")} placeholder={digital ? "e.g. 412345678901" : ""} /></div>
           <div><label className={lbl}>Note (optional)</label><input className={input} value={f.note} onChange={set("note")} /></div>
         </div>
+        {advanced && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><label className={lbl}>Fund source (advanced)</label><input className={input} value={f.fund_source} onChange={set("fund_source")} placeholder="e.g. Annadanam fund" /></div>
+            <div><label className={lbl}>Beneficiary (advanced)</label><input className={input} value={f.beneficiary} onChange={set("beneficiary")} placeholder="who / what it benefits" /></div>
+          </div>
+        )}
         {type === "expense" && (
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.claim} onChange={(e) => setF({ ...f, claim: e.target.checked })} />
             Paid from own pocket — claim reimbursement</label>
