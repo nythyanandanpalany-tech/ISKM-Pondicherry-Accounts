@@ -34,6 +34,9 @@ npm run test:rules           # 51 security-rule tests
 9. Custom domain (e.g. one bought on GoDaddy): Hosting → *Add custom domain* and add the DNS records it shows.
 10. Sign up in the app → create a workspace (you become Owner) → add members by their sign-up email in Settings.
 
+## Automatic deploy (no tools needed on your computer)
+Push this branch to GitHub; `.github/workflows/deploy.yml` builds and deploys the site and the rules to Firebase. Set the variable/secrets listed at the top of that file once. The free address is `https://<project-id>.web.app` — a custom domain can be added later.
+
 ## What it costs
 Free quotas apply on Blaze; you pay only beyond them. Approx. (verify on Google's pricing pages): Firestore 1 GiB stored + 50k reads/day free; Cloud Storage 5 GB stored free in US regions, then a few rupees per GB-month; Hosting 10 GB free.
 Photos are compressed to ~100 KB, so ~200 KB per entry ≈ 25,000 entries in 5 GB.
