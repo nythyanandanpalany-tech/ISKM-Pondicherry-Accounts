@@ -8,6 +8,8 @@ import type { Role } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
 import { setThemePref, useThemePref, type ThemePref } from "@/components/Theme";
 import { startTour } from "@/components/Tour";
+import StorageMeter, { useStorageUsage } from "@/components/StorageMeter";
+import PhotoArchive from "@/components/PhotoArchive";
 import { useWs } from "@/components/WorkspaceProvider";
 import { btnDanger, btnGhost, btnPrimary, input } from "@/components/ui";
 
@@ -21,6 +23,7 @@ export default function Settings() {
   const [alerts, setAlerts] = useState(false);
   useEffect(() => { try { setAlerts(localStorage.getItem("ef_alerts") === "1"); } catch { /* ignore */ } }, []);
   const { ws, role, canManage, categories, items, people, members, reload, reloadWorkspaces, switchTo, workspaces, catName } = useWs();
+  const storageUsed = useStorageUsage(canManage);
   const [acct, setAcct] = useState({ full_name: profile.full_name ?? "", username: profile.username ?? "" });
   const [pw, setPw] = useState(""); const [msg, setMsg] = useState("");
   const [w, setW] = useState({ name: ws.name, currency: ws.currency, date_format: ws.date_format, org_type: ws.org_type, monthly_budget: ws.monthly_budget?.toString() ?? ""  , primary_purchaser: ws.primary_purchaser ?? "" });
@@ -100,6 +103,7 @@ export default function Settings() {
           <label className="text-xs">Organisation type<select className={input} value={w.org_type} onChange={(e) => setW({ ...w, org_type: e.target.value })}>{["Temple", "School", "Clinic", "Company", "Housing Society", "NGO"].map((c) => <option key={c}>{c}</option>)}</select></label>
         </div>
         <button className={btnPrimary} onClick={saveWs}>Save changes</button>
+        <div className="space-y-3 border-t pt-3"><StorageMeter used={storageUsed} /><PhotoArchive onDone={() => window.location.reload()} /></div>
         {advanced && <div className="border-t pt-3 text-sm"><div className="mb-1 font-medium">Modules (advanced)</div>
           {(["store", "chats"] as const).map((k) => <label key={k} className="mr-4 inline-flex items-center gap-1 capitalize"><input type="checkbox" checked={ws.modules?.[k] !== false} onChange={async (e) => { const { error } = await supabase.from("workspaces").update({ modules: { ...ws.modules, [k]: e.target.checked } }).eq("id", ws.id); if (error) return alert(error.message); await reloadWorkspaces(); }} />{k}</label>)}</div>}</section>
 

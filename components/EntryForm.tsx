@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { today } from "@/lib/format";
-import { compressImage } from "@/lib/compress";
+import { compressImage, MAX_PDF_MB } from "@/lib/compress";
 import { MODES, type Entry } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
 import { useWs } from "./WorkspaceProvider";
@@ -64,6 +64,7 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
   const digital = f.payment_mode === "UPI" || f.payment_mode === "Bank Transfer" || f.payment_mode === "Card";
 
   async function upload(file: File) {
+    if (file.type === "application/pdf" && file.size > MAX_PDF_MB * 1024 * 1024) throw new Error(`PDF is over ${MAX_PDF_MB} MB. Please photograph the bill instead (photos are compressed automatically).`);
     const small = await compressImage(file);
     const ext = small.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${ws.id}/${crypto.randomUUID()}.${ext}`;
@@ -143,7 +144,7 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
           {[true, false].map((v) => <label key={String(v)} className="flex items-center gap-1"><input type="radio" checked={f.receipt_available === v} onChange={() => setF({ ...f, receipt_available: v })} />{v ? "Yes" : "No"}</label>)}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <FilePick title="Bill / invoice photo" hint="The bill this payment was made for. Compressed automatically." required={f.receipt_available} file={bill}
+          <FilePick title="Bill / invoice photo" hint="The bill this payment was made for. Photos are shrunk automatically to save space." required={f.receipt_available} file={bill}
             existing={dropBill ? null : entry?.bill_path ?? null} onFile={(x) => { setBill(x); setDropBill(false); }} onClear={() => { setBill(null); setDropBill(true); }} />
           <FilePick title="Payment screenshot" hint="GPay / PhonePe / bank app screenshot. Used to match the bank statement." file={proof}
             existing={dropProof ? null : entry?.payment_proof_path ?? null} onFile={(x) => { setProof(x); setDropProof(false); }} onClear={() => { setProof(null); setDropProof(true); }} />

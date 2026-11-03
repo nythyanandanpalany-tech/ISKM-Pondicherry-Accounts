@@ -10,10 +10,12 @@ import EntryForm from "@/components/EntryForm";
 import { btnGhost, btnPrimary } from "@/components/ui";
 import { toExcel } from "@/lib/export";
 import Gauge from "@/components/Gauge";
+import StorageMeter, { FREE_BYTES, useStorageUsage } from "@/components/StorageMeter";
 
 export default function Dashboard() {
   const { profile, advanced } = useAuth();
   const { ws, categories, items, canWrite, canManage, canDownload, catName, itemName, personName, money } = useWs();
+  const storageUsed = useStorageUsage(canManage);
   const [rows, setRows] = useState<Entry[]>([]); const [open, setOpen] = useState(false); const [unmatched, setUnmatched] = useState(0); const [more, setMore] = useState(15);
   const load = () => {
     supabase.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000).then(({ data }) => setRows((data as Entry[]) ?? []));
@@ -44,6 +46,7 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold">Hare Krishna, {profile.full_name} 🙏</h1>
         <div className="flex gap-2"><Link href="/app/report" className={btnGhost}>Report</Link>{canWrite && <button className={btnPrimary} onClick={() => setOpen(true)}>+ Add entry</button>}</div>
       </div>
+      {canManage && storageUsed != null && storageUsed >= FREE_BYTES * 0.75 && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3"><StorageMeter used={storageUsed} /></div>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {cards.map(([t, v, href]) => { const c = <div className="h-full rounded-xl border bg-white p-3"><div className="text-xs text-slate-500">{t}</div><div className="mt-1 text-lg font-bold">{v}</div></div>; return href ? <Link key={t} href={href}>{c}</Link> : <div key={t}>{c}</div>; })}
       </div>
