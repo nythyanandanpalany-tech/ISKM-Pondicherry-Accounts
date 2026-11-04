@@ -1,11 +1,11 @@
-# Deploys the site + security rules to Firebase every time the `firebase` branch is pushed (or run it by hand from the Actions tab).
+# OPTIONAL: host the website on Firebase Hosting instead of Vercel. Run it by hand from the Actions tab.
+# (If you use Vercel for the website, you only need deploy-rules.yml.)
 # One-time setup (GitHub repo -> Settings -> Secrets and variables -> Actions):
 #   Variable  FIREBASE_PROJECT_ID           e.g. my-temple-accounts
 #   Secrets   NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_APP_ID
 #             FIREBASE_SERVICE_ACCOUNT      the full JSON of a service-account key (Firebase console -> Project settings -> Service accounts)
-name: Deploy to Firebase
+name: Deploy site to Firebase Hosting (optional)
 on:
-  push: { branches: [firebase] }
   workflow_dispatch: {}
 concurrency: deploy
 jobs:

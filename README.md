@@ -34,8 +34,14 @@ npm run test:rules           # 51 security-rule tests
 9. Custom domain (e.g. one bought on GoDaddy): Hosting → *Add custom domain* and add the DNS records it shows.
 10. Sign up in the app → create a workspace (you become Owner) → add members by their sign-up email in Settings.
 
-## Automatic deploy (no tools needed on your computer)
-Push this branch to GitHub; `.github/workflows/deploy.yml` builds and deploys the site and the rules to Firebase. Set the variable/secrets listed at the top of that file once. The free address is `https://<project-id>.web.app` — a custom domain can be added later.
+## Deploy the website on Vercel (free) + rules on Firebase
+1. Put this branch on GitHub (as `main`). Run `.github/workflows/deploy-rules.yml` once from the Actions tab after adding the variable/secret listed at its top — this publishes the security rules.
+2. https://vercel.com → **Add New → Project** → import the repo. Framework: **Next.js** (auto-detected, no build settings to change).
+3. Add these **Environment Variables** (values from Firebase → Project settings → Your apps → Web app):
+   `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_APP_ID`.
+4. Deploy. In **Firebase → Authentication → Settings → Authorized domains**, add your `*.vercel.app` address (needed for email-link sign-in).
+5. Every push to `main` redeploys the website; changes under `firebase/` also republish the rules.
+Vercel's free Hobby plan is for non-commercial use (a temple/seva group qualifies, but check their current terms). Optional alternative: host on Firebase Hosting with `deploy.yml`.
 
 ## What it costs
 Free quotas apply on Blaze; you pay only beyond them. Approx. (verify on Google's pricing pages): Firestore 1 GiB stored + 50k reads/day free; Cloud Storage 5 GB stored free in US regions, then a few rupees per GB-month; Hosting 10 GB free.
