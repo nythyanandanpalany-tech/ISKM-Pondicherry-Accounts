@@ -175,6 +175,17 @@ const dbAuth = {
     });
     return { error: error ? fail(error) : null };
   },
+  /** Supabase emails a recovery link; landing on it (detectSessionInUrl) signs the browser in so updateUser can run. */
+  async requestPasswordReset({ email }: { email: string }) {
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${location.origin}/reset-password` });
+    return { error: error ? fail(error) : null };
+  },
+  /** Called from /reset-password once the recovery link has signed the browser in. */
+  async confirmPasswordReset({ password }: { password: string }) {
+    if (weakPw(password)) return { error: { message: PW_HINT } as Err };
+    const { error } = await sb.auth.updateUser({ password });
+    return { error: error ? fail(error) : null };
+  },
   /**
    * Called when a page loads in case the browser arrived on a sign-in link. The client swaps the
    * code in the URL for a session by itself (detectSessionInUrl), and getSession waits for that to

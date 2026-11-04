@@ -16,7 +16,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [msgKind, setMsgKind] = useState<"error" | "success">("error");
+  const [busy, setBusy] = useState<"" | "signin" | "magic" | "forgot">("");
   const [remember, setRemember] = useState(true);
   const [verse, setVerse] = useState<Verse | null>(null);
 
@@ -25,20 +26,32 @@ export default function Login() {
     db.auth.completeEmailLink().then((r) => { if (r.signedIn) router.replace("/app"); else if (r.error) setMsg(r.error.message); });
     db.auth.getSession().then(({ data: { session } }) => { if (session) router.replace("/app"); });
   }, [router]);
+  function fail(message: string) { setMsgKind("error"); setMsg(message); }
+  function ok(message: string) { setMsgKind("success"); setMsg(message); }
+
   async function submit(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setMsg("");
+    e.preventDefault(); setBusy("signin"); setMsg("");
     const res = mode === "in"
       ? await db.auth.signInWithPassword({ email, password, remember })
       : await db.auth.signUp({ email, password, options: { data: { full_name: name } } });
-    setBusy(false);
-    if (res.error) return setMsg(res.error.message);
+    setBusy("");
+    if (res.error) return fail(res.error.message);
     if (res.data.session) router.replace("/app");
-    else setMsg("Check your email to confirm your account, then sign in.");
+    else ok("Check your email to confirm your account, then sign in.");
   }
   async function magic() {
-    if (!email) return setMsg("Enter your email first.");
+    if (!email) return fail("Enter your email first.");
+    setBusy("magic"); setMsg("");
     const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}/app` } });
-    setMsg(error ? error.message : "Magic link sent. Check your email.");
+    setBusy("");
+    if (error) fail(error.message); else ok("Magic link sent. Check your email.");
+  }
+  async function forgotPassword() {
+    if (!email) return fail("Enter your email above first.");
+    setBusy("forgot"); setMsg("");
+    const { error } = await db.auth.requestPasswordReset({ email });
+    setBusy("");
+    if (error) fail(error.message); else ok("Password reset link sent. Check your email.");
   }
 
   return (
@@ -71,10 +84,16 @@ export default function Login() {
           <input className={input} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <input className={input} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={mode === "up" ? 8 : 1} />
           {mode === "up" && <p className="text-xs text-slate-400">At least 8 characters, with a letter and a number.</p>}
+          {mode === "in" && <button type="button" onClick={forgotPassword} disabled={!!busy} className="block text-sm text-indigo-600 disabled:opacity-50">{busy === "forgot" ? "Sending…" : "Forgot password?"}</button>}
+          {msg && (
+            <p role={msgKind === "error" ? "alert" : "status"}
+              className={`rounded-md border px-3 py-2 text-sm ${msgKind === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+              {msg}
+            </p>
+          )}
           <label className="flex items-center gap-2 text-sm text-slate-500"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />Remember me on this device</label>
-          <button className={`${btnPrimary} w-full`} disabled={busy}>{mode === "in" ? "Sign in" : "Create account"}</button>
-          <button type="button" onClick={magic} className="w-full text-sm text-indigo-600">Email me a magic link instead</button>
-          {msg && <p className="text-sm text-slate-600">{msg}</p>}
+          <button className={`${btnPrimary} w-full`} disabled={!!busy}>{busy === "signin" ? "Working…" : mode === "in" ? "Sign in" : "Create account"}</button>
+          <button type="button" onClick={magic} disabled={!!busy} className="w-full text-sm text-indigo-600 disabled:opacity-50">{busy === "magic" ? "Sending…" : "Email me a magic link instead"}</button>
           <button type="button" onClick={() => setMode(mode === "in" ? "up" : "in")} className="w-full text-sm text-slate-500">
             {mode === "in" ? "New here? Create an account" : "Have an account? Sign in"}
           </button>
