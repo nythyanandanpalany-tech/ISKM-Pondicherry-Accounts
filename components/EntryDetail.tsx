@@ -5,12 +5,12 @@ import { dmy } from "@/lib/format";
 import type { Entry, Txn } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
 import { useWs } from "./WorkspaceProvider";
-import { Modal, Receipt, btnDanger, btnGhost } from "./ui";
+import { Confirm, Modal, Receipt, btnDanger, btnGhost } from "./ui";
 
 export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { entry: Entry; onClose: () => void; onEdit: () => void; onChanged: () => void }) {
   const { profile } = useAuth();
   const { canManage, canWrite, catName, itemName, personName, money } = useWs();
-  const [txn, setTxn] = useState<Txn | null>(null);
+  const [txn, setTxn] = useState<Txn | null>(null); const [confirming, setConfirming] = useState(false);
   const [log, setLog] = useState<{ id: string; action: string; at: string; snapshot: Entry }[]>([]);
   useEffect(() => {
     if (!canManage) return;
@@ -21,10 +21,9 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
   const editable = canManage || (canWrite && mine);
 
   async function del() {
-    if (!confirm("Delete this entry and its images?")) return;
     const files = [entry.bill_path, entry.payment_proof_path].filter(Boolean) as string[];
     const { error } = await db.from("entries").delete().eq("id", entry.id);
-    if (error) return alert(error.message);
+    if (error) throw new Error(error.message);
     if (files.length) await db.storage.from("receipts").remove(files);
     onChanged();
   }
@@ -45,7 +44,13 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
           <Receipt path={entry.payment_proof_path} label="Payment screenshot" size="lg" />
         </div>
       </div>
-      {editable && <div className="mt-5 flex justify-end gap-2"><button className={btnGhost} onClick={onEdit}>Edit</button><button className={btnDanger} onClick={del}>Delete</button></div>}
+      {editable && <div className="mt-5 flex justify-end gap-2"><button className={btnGhost} onClick={onEdit}>Edit</button><button className={btnDanger} onClick={() => setConfirming(true)}>Delete</button></div>}
+      {confirming && (
+        <Confirm title="Delete this entry" confirmLabel="Delete" danger onClose={() => setConfirming(false)} onConfirm={del}>
+          <p>Delete this {entry.type} of <b>{money(entry.amount)}</b> from {dmy(entry.entry_date)}, along with its bill and payment photos?</p>
+          <p className="text-slate-500">Owners and admins can still see that it was deleted, in the entry’s history.</p>
+        </Confirm>
+      )}
     </Modal>
   );
 }

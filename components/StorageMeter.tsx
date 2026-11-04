@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 
-export const FREE_BYTES = 5 * 1024 * 1024 * 1024; // Firebase Blaze no-cost allowance for Cloud Storage: 5 GB-months
+export const FREE_BYTES = 1024 * 1024 * 1024; // Supabase free plan allowance for file storage: 1 GB
 const mb = (b: number) => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);
 
 export function useStorageUsage(enabled: boolean) {

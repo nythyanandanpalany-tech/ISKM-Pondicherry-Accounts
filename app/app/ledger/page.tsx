@@ -9,7 +9,7 @@ import { useWs } from "@/components/WorkspaceProvider";
 import Vouchers from "@/components/Vouchers";
 import EntryForm from "@/components/EntryForm";
 import EntryDetail from "@/components/EntryDetail";
-import { btnGhost, btnPrimary, input } from "@/components/ui";
+import { Mark, btnGhost, btnPrimary, input, rowActivate, rowClickable } from "@/components/ui";
 
 const SORTS: Record<string, (a: Entry, b: Entry) => number> = {
   "Date: newest": (a, b) => b.entry_date.localeCompare(a.entry_date) || b.created_at.localeCompare(a.created_at),
@@ -65,13 +65,13 @@ export default function Ledger() {
 
   const exp = shown.filter((r) => r.type === "expense").reduce((s, r) => s + r.amount, 0);
   const inc = shown.filter((r) => r.type === "income").reduce((s, r) => s + r.amount, 0);
-  const chip = (id: string, label: string) => <button key={id} onClick={() => setPeriod(id)} className={`rounded-full px-3 py-1 text-sm ${period === id ? "bg-indigo-600 text-white" : "bg-white border text-slate-600"}`}>{label}</button>;
+  const chip = (id: string, label: string) => <button key={id} onClick={() => setPeriod(id)} className={`rounded-full px-3 py-1 text-sm ${period === id ? "bg-indigo-600 text-white" : "bg-surface border border-slate-300 text-slate-600"}`}>{label}</button>;
   const fset = (k: keyof typeof fl) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => setFl({ ...fl, [k]: e.target.value });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Ledger</h1>
+        <h1 className="text-[24px] font-bold text-slate-800">Ledger</h1>
         <div className="flex gap-2">
           {canDownload && <button className={btnGhost} onClick={() => toExcel(shown, { cat: catName, item: itemName, person: personName })}>Excel</button>}
           {canDownload && <button className={btnGhost} onClick={() => window.print()}>PDF</button>}
@@ -87,7 +87,7 @@ export default function Ledger() {
         <button className={btnGhost} onClick={() => setShowF(!showF)}>Filters {showF ? "▲" : "▼"}</button>
       </div>
       {showF && (
-        <div className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-4 print:hidden">
+        <div className="grid gap-2 rounded-lg border border-slate-200 bg-surface shadow-card p-3 sm:grid-cols-4 print:hidden">
           <div><div className="text-xs text-slate-500">From</div><input type="date" className={input} value={fl.from} onChange={fset("from")} /></div>
           <div><div className="text-xs text-slate-500">To</div><input type="date" className={input} value={fl.to} onChange={fset("to")} /></div>
           <div><div className="text-xs text-slate-500">Category</div><select className={input} value={fl.category} onChange={fset("category")}><option value="">All</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -105,24 +105,26 @@ export default function Ledger() {
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[["Entries", String(shown.length)], ["Expenses", money(exp)], ["Income", money(inc)], ["Net", money(inc - exp)]].map(([k, v]) => (
-          <div key={k} className="rounded-xl border bg-white p-3"><div className="text-xs text-slate-500">{k}</div><div className="text-lg font-bold">{v}</div></div>))}
+          <div key={k} className="rounded-lg border border-slate-200 bg-surface shadow-card p-3"><div className="text-xs text-slate-500">{k}</div><div className="text-lg font-bold">{v}</div></div>))}
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface shadow-card">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Category / Item</th><th>Member</th><th>Mode</th><th>Status</th><th className="text-right">Amount</th><th className="px-3">Bill</th><th>Payment</th>{canManage && <th>Bank</th>}</tr></thead>
           <tbody>
             {loading && <tr><td colSpan={9} className="p-6 text-center text-slate-400">Loading…</td></tr>}
             {!loading && !shown.length && <tr><td colSpan={9} className="p-6 text-center text-slate-400">No entries for these filters.</td></tr>}
             {shown.map((r) => (
-              <tr key={r.id} className="cursor-pointer border-t hover:bg-slate-50" onClick={() => setDetail(r)}>
+              <tr key={r.id} className={rowClickable} {...rowActivate(() => setDetail(r), `Open ${dmy(r.entry_date)} ${catName(r.category_id) || r.type} ${money(r.amount)}`)}>
                 <td className="p-3 whitespace-nowrap">{dmy(r.entry_date)}</td>
                 <td><div className="font-medium">{catName(r.category_id) || "—"}{r.item_id && ` · ${itemName(r.item_id)}`}</div><div className="text-xs text-slate-500">{r.note}</div></td>
                 <td>{personName(r.person_id)}</td><td>{r.payment_mode}</td>
                 <td className="text-xs capitalize">{r.claim_status ?? "direct"}</td>
                 <td className={`text-right font-medium whitespace-nowrap ${r.type === "income" ? "text-emerald-600" : ""}`}>{r.type === "income" ? "+" : ""}{money(r.amount)}</td>
-                <td className="px-3 text-center">{r.bill_path ? "✅" : r.receipt_available ? "⚠️" : "—"}</td>
-                <td className="text-center">{r.payment_proof_path ? "✅" : ["UPI", "Bank Transfer", "Card"].includes(r.payment_mode) ? "⚠️" : "—"}</td>
-                {canManage && <td className="text-center">{matched.has(r.id) ? "🔗" : "—"}</td>}
+                <td className="px-3 text-center"><Mark kind="Bill" state={r.bill_path ? "yes" : r.receipt_available ? "missing" : "none"} /></td>
+                <td className="text-center"><Mark kind="Payment screenshot" state={r.payment_proof_path ? "yes" : ["UPI", "Bank Transfer", "Card"].includes(r.payment_mode) ? "missing" : "none"} /></td>
+                {canManage && <td className="text-center">{matched.has(r.id)
+                  ? <span title="Matched to a bank transaction"><span aria-hidden="true">🔗</span><span className="sr-only">Matched to a bank transaction</span></span>
+                  : <span title="Not matched to a bank transaction"><span aria-hidden="true">—</span><span className="sr-only">Not matched to a bank transaction</span></span>}</td>}
               </tr>
             ))}
           </tbody>

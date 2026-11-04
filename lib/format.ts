@@ -7,18 +7,39 @@ export const dmy = (d: string) => {
 export const today = () => new Date().toISOString().slice(0, 10);
 
 const MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-/** Parse common bank-statement dates into YYYY-MM-DD. */
+/**
+ * Assemble YYYY-MM-DD, but only if the calendar really has that day.
+ * Entry dates are stored and sorted as plain strings, so an impossible one like "2026-02-31" or
+ * "2026-13-01" would quietly corrupt every date filter and ordering that touches it. Returning
+ * null instead means the importer reports the row as skipped and the operator can look at it.
+ */
+function iso(y: number, m: number, d: number): string | null {
+  if (!(y >= 1900 && y <= 2200 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+  const t = new Date(Date.UTC(y, m - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+const year = (s: string) => (s.length === 2 ? 2000 + Number(s) : Number(s));
+
+/** Parse common bank-statement dates into YYYY-MM-DD, or null if it is not a real date. */
 export function parseDate(raw: string): string | null {
   const s = (raw || "").trim();
   if (!s) return null;
   let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  if (m) return iso(Number(m[1]), Number(m[2]), Number(m[3]));
   m = s.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{2,4})/);
-  if (m) return `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  if (m) {
+    const a = Number(m[1]), b = Number(m[2]), y = year(m[3]);
+    // Day first, the way Indian statements write it — unless only the other reading has a valid
+    // month, which is how a US-format export (01/13/2026) gets read correctly instead of as month 13.
+    if (a > 12 && b <= 12) return iso(y, b, a);
+    if (b > 12 && a <= 12) return iso(y, a, b);
+    return iso(y, b, a);
+  }
   m = s.match(/^(\d{1,2})[-/ ]([A-Za-z]{3})[a-z]*[-/ ,]*(\d{2,4})/);
   if (m) {
     const mi = MONTHS.indexOf(m[2].toLowerCase());
-    if (mi >= 0) return `${m[3].length === 2 ? "20" + m[3] : m[3]}-${String(mi + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    if (mi >= 0) return iso(year(m[3]), mi + 1, Number(m[1]));
   }
   return null;
 }

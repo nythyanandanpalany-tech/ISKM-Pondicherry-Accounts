@@ -5,14 +5,14 @@ import { db } from "@/lib/db";
 import { dmy, num, parseDate, today } from "@/lib/format";
 import type { Txn } from "@/lib/types";
 import { useWs } from "@/components/WorkspaceProvider";
-import { btnDanger, btnGhost, btnPrimary, input } from "@/components/ui";
+import { Confirm, btnDanger, btnGhost, btnPrimary, input } from "@/components/ui";
 
 type Row = Record<string, string>;
 const find = (cols: string[], ...keys: string[]) => cols.find((c) => keys.some((k) => c.toLowerCase().includes(k)));
 
 export default function Bank() {
   const { ws, canManage, money } = useWs();
-  const [txns, setTxns] = useState<Txn[]>([]); const [msg, setMsg] = useState("");
+  const [txns, setTxns] = useState<Txn[]>([]); const [msg, setMsg] = useState(""); const [clearing, setClearing] = useState(false);
   const [manual, setManual] = useState({ txn_date: today(), description: "", reference: "", amount: "", direction: "debit" });
   const load = useCallback(async () => {
     const { data } = await db.from("bank_transactions").select("*").eq("workspace_id", ws.id).order("txn_date", { ascending: false }).limit(1000);
@@ -47,12 +47,12 @@ export default function Bank() {
   }
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold">Bank Statement</h1>
+      <h1 className="text-[24px] font-bold text-slate-800">Bank Statement</h1>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 rounded-xl border bg-white p-4"><div className="font-semibold">Import statement (CSV)</div>
+        <div className="space-y-2 rounded-lg border border-slate-200 bg-surface shadow-card p-4"><div className="font-semibold">Import statement (CSV)</div>
           <p className="text-xs text-slate-500">Download the CSV from net-banking. Date, Narration, Withdrawal/Debit, Deposit/Credit and Ref No columns are detected automatically.</p>
           <input type="file" accept=".csv" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} className="text-sm" />{msg && <p className="text-sm text-indigo-700">{msg}</p>}</div>
-        <form onSubmit={addManual} className="space-y-2 rounded-xl border bg-white p-4"><div className="font-semibold">Add a transaction manually</div>
+        <form onSubmit={addManual} className="space-y-2 rounded-lg border border-slate-200 bg-surface shadow-card p-4"><div className="font-semibold">Add a transaction manually</div>
           <div className="grid grid-cols-3 gap-2">
             <input className={input} type="date" value={manual.txn_date} onChange={(e) => setManual({ ...manual, txn_date: e.target.value })} required />
             <input className={input} type="number" step="0.01" placeholder="Amount" value={manual.amount} onChange={(e) => setManual({ ...manual, amount: e.target.value })} required />
@@ -61,13 +61,24 @@ export default function Bank() {
           <input className={input} placeholder="Reference / UTR" value={manual.reference} onChange={(e) => setManual({ ...manual, reference: e.target.value })} />
           <button className={btnPrimary}>Add</button></form>
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface shadow-card"><table className="w-full text-sm">
         <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Narration</th><th>Ref</th><th className="text-right">Amount</th><th className="px-3">Matched</th><th /></tr></thead>
         <tbody>{txns.map((t) => (<tr key={t.id} className="border-t"><td className="p-3 whitespace-nowrap">{dmy(t.txn_date)}</td><td className="max-w-xs truncate">{t.description}</td><td>{t.reference}</td>
           <td className={`text-right font-medium whitespace-nowrap ${t.direction === "credit" ? "text-emerald-600" : ""}`}>{t.direction === "credit" ? "+" : "−"}{money(t.amount)}</td>
           <td className="px-3 text-center">{t.matched_entry_id ? "🔗" : "—"}</td><td><button className={btnDanger} onClick={async () => { await db.from("bank_transactions").delete().eq("id", t.id); load(); }}>×</button></td></tr>))}
           {!txns.length && <tr><td colSpan={6} className="p-6 text-center text-slate-400">No transactions yet.</td></tr>}</tbody></table></div>
-      <button className={btnGhost} onClick={async () => { if (confirm("Delete ALL unmatched transactions?")) { await db.from("bank_transactions").delete().eq("workspace_id", ws.id).is("matched_entry_id", null); load(); } }}>Clear unmatched</button>
+      <button className={btnGhost} onClick={() => setClearing(true)}>Clear unmatched</button>
+      {clearing && (
+        <Confirm title="Clear unmatched transactions" confirmLabel="Delete them" danger onClose={() => setClearing(false)}
+          onConfirm={async () => {
+            const { error } = await db.from("bank_transactions").delete().eq("workspace_id", ws.id).is("matched_entry_id", null);
+            if (error) throw new Error(error.message);
+            setClearing(false); load();
+          }}>
+          <p>Delete every imported bank row that is not yet matched to an entry ({txns.filter((t) => !t.matched_entry_id).length} of {txns.length})?</p>
+          <p className="text-slate-500">Matched rows are kept. You can import the statement again afterwards.</p>
+        </Confirm>
+      )}
     </div>
   );
 }

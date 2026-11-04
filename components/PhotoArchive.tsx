@@ -4,7 +4,7 @@ import JSZip from "jszip";
 import { db } from "@/lib/db";
 import type { Entry } from "@/lib/types";
 import { useWs } from "./WorkspaceProvider";
-import { btnDanger, btnGhost } from "./ui";
+import { Confirm, btnDanger, btnGhost } from "./ui";
 
 type Row = Pick<Entry, "id" | "entry_date" | "amount" | "bill_path" | "payment_proof_path">;
 
@@ -14,7 +14,7 @@ export default function PhotoArchive({ onDone }: { onDone: () => void }) {
   const [months, setMonths] = useState(12);
   const [rows, setRows] = useState<Row[]>([]);
   const [backedUp, setBackedUp] = useState(false);
-  const [busy, setBusy] = useState(""); const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(""); const [msg, setMsg] = useState(""); const [confirming, setConfirming] = useState(false);
   const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
   const cut = cutoff.toISOString().slice(0, 10);
 
@@ -42,7 +42,6 @@ export default function PhotoArchive({ onDone }: { onDone: () => void }) {
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(""); }
   }
   async function remove() {
-    if (!confirm(`Permanently remove ${files.length} photos from the server? Entries stay; only the photos go. You can't undo this.`)) return;
     setBusy("Removing…");
     const paths = files.map((f) => f.path);
     for (let i = 0; i < paths.length; i += 100) { const { error } = await db.storage.from("receipts").remove(paths.slice(i, i + 100)); if (error) { setBusy(""); return setMsg(error.message); } }
@@ -60,9 +59,16 @@ export default function PhotoArchive({ onDone }: { onDone: () => void }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <button className={btnGhost} disabled={!files.length || !!busy} onClick={backup}>1. Download ZIP backup</button>
-        <button className={btnDanger} disabled={!backedUp || !!busy} onClick={remove}>2. Remove from server</button>
+        <button className={btnDanger} disabled={!backedUp || !!busy} onClick={() => setConfirming(true)}>2. Remove from server</button>
       </div>
       {(busy || msg) && <p className="text-xs text-indigo-700">{busy || msg}</p>}
+      {confirming && (
+        <Confirm title="Remove photos from the server" confirmLabel={`Remove ${files.length} photos`} danger
+          onClose={() => setConfirming(false)} onConfirm={async () => { setConfirming(false); await remove(); }}>
+          <p>Permanently remove <b>{files.length} photos</b> taken before {cut} from the server?</p>
+          <p className="text-slate-500">The entries and their amounts stay — only the images go. Make sure the ZIP you just downloaded opens properly first, because this cannot be undone.</p>
+        </Confirm>
+      )}
     </div>
   );
 }

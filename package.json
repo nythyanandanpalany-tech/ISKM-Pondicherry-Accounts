@@ -7,15 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "emulators": "firebase emulators:start --config firebase.demo.json --only auth,firestore,storage --project demo-expenseflow",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-expenseflow \"node firebase/tests/rules.test.mjs\"",
-    "deploy": "next build && firebase deploy"
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./lib/tests/ts-resolve.mjs --test lib/tests/",
+    "test:rls": "bash supabase/tests/run.sh",
+    "test": "npm run lint && npm run typecheck && npm run test:unit"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
-    "firebase": "^13.2.0",
-    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "next": "16.4.4",
     "papaparse": "^5.7.0",
@@ -24,7 +23,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
@@ -32,7 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.4",
-    "firebase-tools": "^15.34.2",
+    "playwright": "^1.64.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -67,8 +67,8 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   if (!loaded) return <div className="p-10 text-center text-slate-500">Loading…</div>;
   if (!ws || !member) return (
     <div className="mx-auto max-w-md p-6">
-      <form onSubmit={create} className="space-y-3 rounded-2xl bg-white p-6 shadow">
-        <h1 className="text-xl font-bold">Create your first workspace</h1>
+      <form onSubmit={create} className="space-y-3 rounded-lg border border-slate-200 bg-surface p-6 shadow-card">
+        <h1 className="text-[24px] font-bold text-slate-800">Create your first workspace</h1>
         <p className="text-sm text-slate-500">A workspace is one set of books, e.g. “Pudhuvai Vrindavanam Accounts”. Or ask an admin to add you to theirs.</p>
         <input className={input} placeholder="Workspace name" value={name} onChange={(e) => setName(e.target.value)} required />
         <button className={btnPrimary}>Create workspace</button>

@@ -72,12 +72,12 @@ export default function Chats() {
   }
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold">Chats</h1><button className={btnGhost} onClick={() => setGroup(true)}>+ Create group</button></div>
+      <div className="flex items-center justify-between"><h1 className="text-[24px] font-bold text-slate-800">Chats</h1><button className={btnGhost} onClick={() => setGroup(true)}>+ Create group</button></div>
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
           <form onSubmit={startPrivate} className="flex gap-2"><input className={input} placeholder="Find a person by @username" value={find} onChange={(e) => setFind(e.target.value)} required /><button className={btnPrimary}>Chat</button></form>
           {msg && <p className="text-xs text-red-600">{msg}</p>}
-          <div className="max-h-[60vh] overflow-y-auto rounded-xl border bg-white">
+          <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-slate-200 bg-surface shadow-card">
             {threads.map((t) => (
               <button key={t.id} onClick={() => setSel(t.id)} className={`block w-full border-b p-3 text-left text-sm last:border-0 hover:bg-slate-50 ${sel === t.id ? "bg-indigo-50" : ""}`}>
                 <div className="flex items-center justify-between"><b className="truncate">{t.kind === "workspace" ? "👥 " : t.kind === "group" ? "🗨 " : ""}{titleOf(t)}</b>
@@ -86,7 +86,7 @@ export default function Chats() {
           </div>
           <p className="text-xs text-slate-500">Your @username is set in Settings → My account. People find you by it.</p>
         </div>
-        <div className="flex h-[70vh] flex-col rounded-xl border bg-white md:col-span-2">
+        <div className="flex h-[70vh] flex-col rounded-lg border border-slate-200 bg-surface shadow-card md:col-span-2">
           {!current ? <div className="m-auto text-sm text-slate-400">Select a chat</div> : (<>
             <div className="border-b p-3 font-semibold">{titleOf(current)} <span className="text-xs font-normal text-slate-500">{current.kind === "workspace" ? "all workspace members" : `${(members.get(current.id) ?? []).length} people`}</span></div>
             <div className="flex-1 space-y-2 overflow-y-auto p-3">

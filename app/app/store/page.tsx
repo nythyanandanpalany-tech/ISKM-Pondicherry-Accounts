@@ -5,7 +5,7 @@ import { dmy, today } from "@/lib/format";
 import type { StockMove, Store, StoreItem } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
 import { useWs } from "@/components/WorkspaceProvider";
-import { Modal, btnDanger, btnGhost, btnPrimary, input } from "@/components/ui";
+import { Confirm, Modal, btnDanger, btnGhost, btnPrimary, input } from "@/components/ui";
 
 export default function StorePage() {
   const { profile } = useAuth();
@@ -16,6 +16,7 @@ export default function StorePage() {
   const [move, setMove] = useState<{ item: StoreItem; dir: "in" | "out" } | null>(null);
   const [hist, setHist] = useState<StoreItem | null>(null);
   const [newStore, setNewStore] = useState(""); const [ni, setNi] = useState({ name: "", unit: "kg", min_qty: "0" });
+  const [msg, setMsg] = useState(""); const [delStore, setDelStore] = useState(false); const [delItem, setDelItem] = useState<StoreItem | null>(null);
 
   const load = useCallback(async () => {
     const [s, i, q] = await Promise.all([
@@ -32,26 +33,27 @@ export default function StorePage() {
 
   const current = stores.find((s) => s.id === sel);
   const list = useMemo(() => items.filter((i) => i.store_id === sel), [items, sel]);
-  const err = (e: { message: string } | null) => e && alert(e.message);
+  const err = (e: { message: string } | null) => setMsg(e ? e.message : "");
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-xl font-bold">Store</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-[24px] font-bold text-slate-800">Store</h1>
         {canManage && <form className="flex gap-2" onSubmit={async (e) => { e.preventDefault(); const { error } = await db.from("stores").insert({ workspace_id: ws.id, name: newStore.trim() }); err(error); setNewStore(""); load(); }}>
           <input className={`${input} !w-48`} placeholder="New store name" value={newStore} onChange={(e) => setNewStore(e.target.value)} required /><button className={btnPrimary}>Add store</button></form>}</div>
       <p className="text-sm text-slate-500">Track stock of items like rice (kg), oil (litres) or flour (bags). Record stock in when goods arrive and stock out when used.</p>
-      {!stores.length && <div className="rounded-xl border border-dashed bg-white p-10 text-center text-sm text-slate-400">No stores yet.{canManage ? " Add one above, e.g. “Annadanam Store”." : " Ask an admin to create one."}</div>}
+      {msg && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{msg}</p>}
+      {!stores.length && <div className="rounded-xl border border-dashed bg-surface p-10 text-center text-sm text-slate-400">No stores yet.{canManage ? " Add one above, e.g. “Annadanam Store”." : " Ask an admin to create one."}</div>}
       {stores.length > 0 && (<>
-        <div className="flex flex-wrap items-center gap-2">{stores.map((s) => <button key={s.id} onClick={() => setSel(s.id)} className={`rounded-full px-3 py-1 text-sm ${sel === s.id ? "bg-indigo-600 text-white" : "border bg-white text-slate-600"}`}>{s.name}</button>)}
-          {canManage && current && <button className="text-xs text-red-600" onClick={async () => { if (confirm(`Delete store “${current.name}” with all items and history?`)) { const { error } = await db.from("stores").delete().eq("id", current.id); err(error); load(); } }}>delete store</button>}</div>
+        <div className="flex flex-wrap items-center gap-2">{stores.map((s) => <button key={s.id} onClick={() => setSel(s.id)} className={`rounded-full px-3 py-1 text-sm ${sel === s.id ? "bg-indigo-600 text-white" : "border border-slate-300 bg-surface text-slate-600"}`}>{s.name}</button>)}
+          {canManage && current && <button className="text-xs text-red-600" onClick={() => setDelStore(true)}>delete store</button>}</div>
         {canManage && current && (
-          <form className="flex flex-wrap gap-2 rounded-xl border bg-white p-3" onSubmit={async (e) => { e.preventDefault(); const { error } = await db.from("store_items").insert({ workspace_id: ws.id, store_id: current.id, name: ni.name.trim(), unit: ni.unit.trim() || "pcs", min_qty: parseInt(ni.min_qty) || 0 }); err(error); setNi({ ...ni, name: "" }); load(); }}>
+          <form className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-surface shadow-card p-3" onSubmit={async (e) => { e.preventDefault(); const { error } = await db.from("store_items").insert({ workspace_id: ws.id, store_id: current.id, name: ni.name.trim(), unit: ni.unit.trim() || "pcs", min_qty: parseInt(ni.min_qty) || 0 }); err(error); setNi({ ...ni, name: "" }); load(); }}>
             <input className={`${input} !w-56`} placeholder="New item (e.g. Rice)" value={ni.name} onChange={(e) => setNi({ ...ni, name: e.target.value })} required />
             <input className={`${input} !w-28`} placeholder="Unit" list="units" value={ni.unit} onChange={(e) => setNi({ ...ni, unit: e.target.value })} />
             <datalist id="units">{["kg", "litres", "bags", "packets", "pcs", "boxes"].map((u) => <option key={u} value={u} />)}</datalist>
             <input className={`${input} !w-32`} type="number" min="0" placeholder="Low-stock level" value={ni.min_qty} onChange={(e) => setNi({ ...ni, min_qty: e.target.value })} />
             <button className={btnGhost}>Add item</button></form>)}
-        <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface shadow-card"><table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Item</th><th className="text-right">In stock</th><th className="px-3">Status</th><th /></tr></thead>
           <tbody>{list.map((i) => { const q = stock.get(i.id) ?? 0; const low = q <= i.min_qty; return (
             <tr key={i.id} className="border-t"><td className="p-3 font-medium">{i.name}</td>
@@ -61,8 +63,20 @@ export default function StorePage() {
                 {canWrite && <button className={btnPrimary} onClick={() => setMove({ item: i, dir: "in" })}>+ In</button>}
                 {canWrite && <button className={btnGhost} onClick={() => setMove({ item: i, dir: "out" })} disabled={q === 0}>− Out</button>}
                 <button className={btnGhost} onClick={() => setHist(i)}>History</button>
-                {canManage && <button className={btnDanger} onClick={async () => { if (confirm(`Delete ${i.name} and its history?`)) { const { error } = await db.from("store_items").delete().eq("id", i.id); err(error); load(); } }}>×</button>}</td></tr>); })}
+                {canManage && <button className={btnDanger} aria-label={`Delete ${i.name}`} onClick={() => setDelItem(i)}>×</button>}</td></tr>); })}
             {!list.length && <tr><td colSpan={4} className="p-6 text-center text-slate-400">No items in this store yet.</td></tr>}</tbody></table></div></>)}
+      {delStore && current && (
+        <Confirm title="Delete store" confirmLabel="Delete it" danger onClose={() => setDelStore(false)}
+          onConfirm={async () => { const { error } = await db.from("stores").delete().eq("id", current.id); if (error) throw new Error(error.message); setDelStore(false); load(); }}>
+          <p>Delete the store <b>{current.name}</b>, with every item in it and all of their stock history?</p>
+        </Confirm>
+      )}
+      {delItem && (
+        <Confirm title="Delete item" confirmLabel="Delete it" danger onClose={() => setDelItem(null)}
+          onConfirm={async () => { const { error } = await db.from("store_items").delete().eq("id", delItem.id); if (error) throw new Error(error.message); setDelItem(null); load(); }}>
+          <p>Delete <b>{delItem.name}</b> and its whole stock history?</p>
+        </Confirm>
+      )}
       {move && <MoveModal item={move.item} dir={move.dir} max={stock.get(move.item.id) ?? 0} userId={profile.id} wsId={ws.id} onClose={() => setMove(null)} onDone={() => { setMove(null); load(); }} />}
       {hist && <HistoryModal item={hist} canManage={canManage} onClose={() => setHist(null)} onChanged={load} />}
     </div>
@@ -94,7 +108,7 @@ function MoveModal({ item, dir, max, userId, wsId, onClose, onDone }: { item: St
 }
 
 function HistoryModal({ item, canManage, onClose, onChanged }: { item: StoreItem; canManage: boolean; onClose: () => void; onChanged: () => void }) {
-  const [rows, setRows] = useState<StockMove[]>([]);
+  const [rows, setRows] = useState<StockMove[]>([]); const [delMove, setDelMove] = useState<StockMove | null>(null); const [err, setErr] = useState("");
   const load = useCallback(async () => { const { data } = await db.from("stock_moves").select("*").eq("store_item_id", item.id).order("move_date", { ascending: false }).order("created_at", { ascending: false }); setRows((data as StockMove[]) ?? []); }, [item.id]);
   useEffect(() => { load(); }, [load]);
   return (
@@ -102,8 +116,20 @@ function HistoryModal({ item, canManage, onClose, onChanged }: { item: StoreItem
       <div className="max-h-[60vh] overflow-y-auto">{rows.map((r) => (
         <div key={r.id} className="flex items-center justify-between border-b py-2 text-sm">
           <div><span className={`font-semibold ${r.direction === "in" ? "text-emerald-600" : "text-red-600"}`}>{r.direction === "in" ? "+" : "−"}{r.qty} {item.unit}</span><span className="ml-2 text-slate-500">{dmy(r.move_date)} {r.note && `· ${r.note}`}</span></div>
-          {canManage && <button className="text-xs text-red-600" onClick={async () => { if (!confirm("Delete this record?")) return; const { error } = await db.from("stock_moves").delete().eq("id", r.id); if (error) return alert(error.message); load(); onChanged(); }}>delete</button>}
+          {canManage && <button className="text-xs text-red-600" onClick={() => setDelMove(r)}>delete</button>}
         </div>))}{!rows.length && <div className="p-4 text-center text-sm text-slate-400">No movements yet.</div>}</div>
+      {err && <p role="alert" className="mt-2 text-sm text-red-700">{err}</p>}
+      {delMove && (
+        <Confirm title="Delete this movement" confirmLabel="Delete" danger onClose={() => setDelMove(null)}
+          onConfirm={async () => {
+            const { error } = await db.from("stock_moves").delete().eq("id", delMove.id);
+            if (error) throw new Error(error.message);
+            setDelMove(null); setErr(""); load(); onChanged();
+          }}>
+          <p>Remove the record of <b>{delMove.direction === "in" ? "+" : "−"}{delMove.qty} {item.unit}</b> on {dmy(delMove.move_date)}?</p>
+          <p className="text-slate-500">The stock count goes back by that amount. A stock-in that later stock-outs depend on cannot be removed.</p>
+        </Confirm>
+      )}
     </Modal>
   );
 }

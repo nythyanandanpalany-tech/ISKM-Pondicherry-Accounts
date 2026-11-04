@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export", // static site for Firebase Hosting (everything talks to Firebase from the browser)
+  // Deployed on Vercel. Screens still talk to Supabase straight from the browser (row level
+  // security guards the data); the only server-side route is the daily keep-alive ping, which is
+  // why this is not a static export.
   images: { unoptimized: true },
-  /* config options here */
   turbopack: {
     rules: {
       "*.css": {
