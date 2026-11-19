@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { today } from "@/lib/format";
 import { verseOfTheDay, type Verse } from "@/lib/verses";
-import { LotusMark } from "./Brand";
+import { PrabhupadaPhoto } from "./Brand";
 
 /**
  * Verse of the day. Rendered only after mount: the date is read from the
@@ -16,12 +16,17 @@ export function VerseOfTheDay() {
   return (
     <section className="panel-sacred overflow-hidden rounded-lg border border-slate-200 shadow-card" aria-label="Verse of the day">
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-6">
-        <LotusMark size={34} className="shrink-0 opacity-90" />
+        <div className="flex shrink-0 items-center gap-2">
+          <PrabhupadaPhoto size={52} rounded="rounded-lg" />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="sanskrit whitespace-pre-line text-[15px] text-slate-700" lang="sa">{v.sa}</p>
           <p className="mt-2 text-sm italic text-slate-600">&ldquo;{v.en}&rdquo;</p>
         </div>
-        <div className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-gold-ink sm:text-right">{v.ref}</div>
+        <div className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-gold-ink sm:text-right">
+          <div>{v.ref}</div>
+          <div className="mt-0.5 text-[10px] font-normal normal-case tracking-normal text-slate-400">Śrīla Prabhupāda</div>
+        </div>
       </div>
     </section>
   );

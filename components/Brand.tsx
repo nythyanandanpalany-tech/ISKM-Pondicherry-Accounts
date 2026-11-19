@@ -105,3 +105,38 @@ export function MandalaWatermark({ className = "" }: { className?: string }) {
     </svg>
   );
 }
+
+/**
+ * Srila Prabhupada photo (Founder-Acharya of ISKCON / ISKM).
+ * Uses /prabhupada-photo.png from the public directory.
+ */
+export function PrabhupadaPhoto({
+  size = 64,
+  rounded = "rounded-lg",
+  className = "",
+  showCaption = false,
+}: {
+  size?: number;
+  rounded?: "rounded-full" | "rounded-lg" | "rounded-md" | "rounded";
+  className?: string;
+  showCaption?: boolean;
+}) {
+  return (
+    <div className={`inline-flex flex-col items-center ${className}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/prabhupada-photo.png"
+        alt="His Divine Grace A.C. Bhaktivedanta Swami Prabhupada"
+        width={size}
+        height={Math.round((size * 500) / 458)}
+        className={`${rounded} object-cover shadow-sm ring-1 ring-gold-soft`}
+        style={{ width: size, height: "auto", aspectRatio: "458 / 500" }}
+      />
+      {showCaption && (
+        <span className="mt-1 text-center text-[10px] font-medium tracking-wide text-slate-500">
+          Śrīla Prabhupāda
+        </span>
+      )}
+    </div>
+  );
+}

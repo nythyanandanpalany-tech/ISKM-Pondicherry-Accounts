@@ -6,7 +6,7 @@ import { input, btnPrimary } from "@/components/ui";
 import { brand } from "@/lib/brand";
 import { today } from "@/lib/format";
 import { verseOfTheDay, type Verse } from "@/lib/verses";
-import { LotusMark, MandalaWatermark, MahaMantra, Wordmark } from "@/components/Brand";
+import { LotusMark, MandalaWatermark, MahaMantra, Wordmark, PrabhupadaPhoto } from "@/components/Brand";
 import { VerseHero } from "@/components/Verse";
 
 export default function Login() {
@@ -63,7 +63,17 @@ export default function Login() {
           <LotusMark size={38} />
           <Wordmark tone="light" />
         </div>
-        {verse && <div className="relative"><VerseHero verse={verse} /></div>}
+        <div className="relative my-6 space-y-6">
+          <div className="flex items-center gap-4 rounded-xl border border-gold/20 bg-white/5 p-4 backdrop-blur-sm">
+            <PrabhupadaPhoto size={76} rounded="rounded-lg" className="ring-2 ring-gold/40 shadow-lg" />
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-gold-bright">His Divine Grace</div>
+              <div className="text-base font-bold text-white">A.C. Bhaktivedanta Swami Prabhupāda</div>
+              <div className="text-[11px] text-cream/70">Founder-Ācārya · ISKCON / ISKM</div>
+            </div>
+          </div>
+          {verse && <VerseHero verse={verse} />}
+        </div>
         <div className="relative"><MahaMantra tone="light" /></div>
       </div>
 
@@ -71,7 +81,10 @@ export default function Login() {
       <div className="flex flex-1 items-center justify-center p-4">
         <form onSubmit={submit} className="w-full max-w-sm space-y-3 rounded-lg border border-slate-200 bg-surface p-8 shadow-card">
           <div className="mb-1 flex flex-col items-center gap-2 text-center lg:items-start lg:text-left">
-            <LotusMark size={40} className="lg:hidden" />
+            <div className="flex items-center gap-2 lg:hidden">
+              <LotusMark size={32} />
+              <PrabhupadaPhoto size={42} rounded="rounded-lg" />
+            </div>
             <h1 className="font-display text-[26px] font-bold text-slate-800">{brand.greeting} 🙏</h1>
             <p className="text-sm text-slate-500">
               Sign in to continue your seva at <span className="font-medium text-slate-700">{brand.name}</span>.
