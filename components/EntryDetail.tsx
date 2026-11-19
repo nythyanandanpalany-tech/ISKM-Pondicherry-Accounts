@@ -6,6 +6,8 @@ import type { Entry, Txn } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
 import { useWs } from "./WorkspaceProvider";
 import { Confirm, Modal, Receipt, btnDanger, btnGhost } from "./ui";
+import { NoBillTag } from "./formKit";
+import { JV_KINDS, VOUCHER_KINDS } from "@/lib/voucher";
 
 export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { entry: Entry; onClose: () => void; onEdit: () => void; onChanged: () => void }) {
   const { profile } = useAuth();
@@ -18,7 +20,9 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
     db.from("entry_log").select("*").eq("workspace_id", entry.workspace_id).eq("entry_id", entry.id).order("at", { ascending: false }).then(({ data }) => setLog(((data as { id: string; action: string; at: string; snapshot: string | Entry }[]) ?? []).map((l) => ({ ...l, snapshot: typeof l.snapshot === "string" ? JSON.parse(l.snapshot) : l.snapshot }))));
   }, [entry.id, entry.workspace_id, canManage]);
   const mine = entry.created_by === profile.id && (!entry.claim_status || entry.claim_status === "submitted");
-  const editable = canManage || (canWrite && mine);
+  // A journal voucher is for owners and admins alone, whoever made it.
+  const journal = entry.type === "journal";
+  const editable = canManage || (canWrite && mine && !journal);
 
   async function del() {
     const files = [entry.bill_path, entry.payment_proof_path].filter(Boolean) as string[];
@@ -29,25 +33,36 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
   }
   const row = (k: string, v: React.ReactNode) => <div className="flex justify-between gap-4 border-b py-1.5 text-sm"><span className="text-slate-500">{k}</span><span className="text-right font-medium">{v || "—"}</span></div>;
   return (
-    <Modal title={`${entry.type === "income" ? "Income" : "Expense"} · ${money(entry.amount)}`} onClose={onClose} wide>
-      <div className="grid gap-5 md:grid-cols-2">
+    <Modal title={`${entry.voucher_type ? VOUCHER_KINDS[entry.voucher_type].label : entry.type === "income" ? "Income" : "Expense"} · ${money(entry.amount)}`} onClose={onClose} wide={!journal}>
+      <div className={journal ? "" : "grid gap-5 md:grid-cols-2"}>
         <div>
-          {row("Date", dmy(entry.entry_date))}{row("Category", catName(entry.category_id))}{row("Item", itemName(entry.item_id))}
-          {row(entry.type === "income" ? "Received from" : "Who paid", personName(entry.person_id))}{row("Mode", entry.payment_mode)}
-          {row("Reference / UTR", entry.reference_no)}{row("Claim", entry.claim_status)}{row("Note", entry.note)}
+          {entry.voucher_no && row("Voucher no.", <span className="font-mono">{entry.voucher_no}</span>)}
+          {row("Date", dmy(entry.entry_date))}
+          {journal ? <>
+            {row("Journal for", entry.jv_kind ? JV_KINDS[entry.jv_kind].label : "")}
+            {row("Debit", catName(entry.dr_category_id))}
+            {row("Credit", entry.jv_kind === "unpaid_bill" ? "Outstanding expenses" : catName(entry.cr_category_id))}
+            {row("Narration", entry.note)}
+          </> : <>
+            {row("Category", catName(entry.category_id))}{row("Item", itemName(entry.item_id))}
+            {row(entry.type === "income" ? "Received from" : "Who paid", personName(entry.person_id))}{row("Mode", entry.payment_mode)}
+            {row("Reference / UTR", entry.reference_no)}{row("Claim", entry.claim_status)}{row("Note", entry.note)}
+            {entry.no_bill && row("Bill", <><span>No bill — self-voucher</span><NoBillTag /></>)}
+          </>}
           {canManage && <div className={`mt-3 rounded-lg p-3 text-sm ${txn ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
             {txn ? <>✔ Matched to bank transaction {dmy(txn.txn_date)} · {money(txn.amount)}<div className="text-xs">{txn.description}</div></> : "Not yet matched to a bank transaction."}</div>}
           {log.length > 0 && <div className="mt-3 text-xs text-slate-500"><b>History</b>{log.map((l) => <div key={l.id}>{new Date(l.at).toLocaleString()} · {l.action} (was {money(l.snapshot.amount)}{l.snapshot.note ? `, “${l.snapshot.note}”` : ""})</div>)}</div>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        {!journal && <div className="grid grid-cols-2 gap-3">
           <Receipt path={entry.bill_path} label="Bill" size="lg" />
           <Receipt path={entry.payment_proof_path} label="Payment screenshot" size="lg" />
-        </div>
+        </div>}
       </div>
       {editable && <div className="mt-5 flex justify-end gap-2"><button className={btnGhost} onClick={onEdit}>Edit</button><button className={btnDanger} onClick={() => setConfirming(true)}>Delete</button></div>}
       {confirming && (
-        <Confirm title="Delete this entry" confirmLabel="Delete" danger onClose={() => setConfirming(false)} onConfirm={del}>
-          <p>Delete this {entry.type} of <b>{money(entry.amount)}</b> from {dmy(entry.entry_date)}, along with its bill and payment photos?</p>
+        <Confirm title={journal ? "Delete this journal voucher" : "Delete this entry"} confirmLabel="Delete" danger onClose={() => setConfirming(false)} onConfirm={del}>
+          <p>Delete this {journal ? "journal voucher" : entry.type} of <b>{money(entry.amount)}</b> from {dmy(entry.entry_date)}{journal ? "" : ", along with its bill and payment photos"}?</p>
+          {entry.voucher_no && <p className="text-slate-500">Voucher number <span className="font-mono">{entry.voucher_no}</span> will not be reused.</p>}
           <p className="text-slate-500">Owners and admins can still see that it was deleted, in the entry’s history.</p>
         </Confirm>
       )}

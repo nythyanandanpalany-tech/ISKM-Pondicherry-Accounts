@@ -15,6 +15,8 @@ import StorageMeter, { FREE_BYTES, useStorageUsage } from "@/components/StorageM
 import CashflowChart from "@/components/CashflowChart";
 import { VerseOfTheDay } from "@/components/Verse";
 import { brand } from "@/lib/brand";
+import { entryHead } from "@/lib/voucher";
+import { NoBillTag } from "@/components/formKit";
 import { BankIcon, InflowIcon, OutflowIcon, PendingIcon, ReceiptIcon, RupeeIcon } from "@/components/Icons";
 
 type Card = { label: string; value: string; href?: string; icon: React.ReactNode; trend?: { pct: number; good: boolean } };
@@ -110,7 +112,7 @@ export default function Dashboard() {
                   {rows.slice(0, more).map((r) => (
                     <tr key={r.id} className={rowClickable} {...rowActivate(() => setDetail(r), `Open ${dmy(r.entry_date)} ${catName(r.category_id) || r.type} ${money(r.amount)}`)}>
                       <td className="p-3 whitespace-nowrap text-slate-600">{dmy(r.entry_date)}</td>
-                      <td><div className="font-medium text-slate-800">{catName(r.category_id) || r.type}{r.item_id && ` · ${itemName(r.item_id)}`}</div>{r.note && <div className="text-xs text-slate-500">{r.note}</div>}</td>
+                      <td><div className="font-medium text-slate-800">{entryHead(r, catName) || r.type}{r.item_id && ` · ${itemName(r.item_id)}`}{r.no_bill && <NoBillTag />}</div>{(r.voucher_no || r.note) && <div className="text-xs text-slate-500">{r.voucher_no && <span className="font-mono">{r.voucher_no}</span>}{r.voucher_no && r.note && " · "}{r.note}</div>}</td>
                       <td className="text-slate-600">{personName(r.person_id) || "—"}</td>
                       <td className="text-slate-600">{r.payment_mode}</td>
                       <td className={`p-3 text-right font-semibold whitespace-nowrap ${r.type === "income" ? "text-emerald-600" : "text-slate-800"}`}>{r.type === "income" ? "+" : ""}{money(r.amount)}</td>

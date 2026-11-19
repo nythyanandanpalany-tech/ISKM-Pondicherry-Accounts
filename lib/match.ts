@@ -7,7 +7,8 @@ export type Candidate = { entry: Entry; score: number; reasons: string[] };
 export function suggest(txn: Txn, entries: Entry[], personName: (id: string | null) => string): Candidate[] {
   const hay = `${txn.description ?? ""} ${txn.reference ?? ""}`.toLowerCase();
   return entries
-    .filter((e) => (txn.direction === "debit") === (e.type === "expense"))
+    // A journal voucher moves no money through the bank, so it can never be the other half of a statement row.
+    .filter((e) => e.type !== "journal" && (txn.direction === "debit") === (e.type === "expense"))
     .map((entry) => {
       let score = 0; const reasons: string[] = [];
       if (Math.abs(entry.amount - txn.amount) < 0.005) { score += 50; reasons.push("Amount matches"); }

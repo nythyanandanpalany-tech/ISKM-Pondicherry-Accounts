@@ -55,6 +55,8 @@ const fail = (e: unknown): { message: string } => {
     PGRST116: "That record no longer exists. Refresh the page and try again.",
     over_email_send_rate_limit: "Too many emails sent just now. Please wait a minute and try again.",
   };
+  // A category that journal vouchers debit or credit cannot be removed (the FK has no ON DELETE action).
+  if (code === "23503" && raw.includes("update or delete on table")) return { message: "That is still used by existing entries or journal vouchers, so it cannot be removed." };
   if (byCode[code]) return { message: byCode[code] };
   const has = (s: string) => raw.toLowerCase().includes(s);
   if (has("invalid login credentials")) return { message: "Wrong email or password." };

@@ -272,6 +272,128 @@ select t_deny('feedback cannot be sent in someone else''s name',
 :as_owner
 select t_eq('feedback is private to whoever sent it', 'select count(*) from feedback', '0');
 
+-- ================================================================ vouchers
+-- Dates are fixed in 2031 so the expected numbers do not depend on the day the tests run
+-- (the fixtures above are dated current_date). Financial year: April–March.
+reset role;
+create or replace function t_v(p_type text, p_date text, p_mode text, p_note text, p_by text, p_extra_cols text default '', p_extra_vals text default '') returns text
+language sql as $$
+  select format('insert into entries (workspace_id, type, entry_date, amount, payment_mode, note, created_by%s) values (%L, %L, %L, 10, %L, %L, %L%s)',
+    p_extra_cols, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', p_type, p_date, p_mode, p_note, p_by, p_extra_vals) $$;
+create or replace function t_no(p_note text) returns text language sql as $$
+  select format('select voucher_no from entries where note = %L', p_note) $$;
+insert into categories (id, workspace_id, name, kind) values ('c0000000-0000-0000-0000-000000000002', :ws, 'Second Cat', 'expense');
+
+:as_editor
+select t_allow('an expense paid by UPI becomes a bank voucher', t_v('expense', '2031-01-15', 'UPI', 'v-bv1', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...numbered from the financial year, type, month and serial', t_no('v-bv1'), '2030-2031/BV/01/V001');
+select t_allow('a second bank voucher in the month', t_v('expense', '2031-01-20', 'Bank Transfer', 'v-bv2', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...takes the next serial', t_no('v-bv2'), '2030-2031/BV/01/V002');
+select t_allow('a cash expense', t_v('expense', '2031-01-16', 'Cash', 'v-cv1', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is a cash voucher with its own serial', t_no('v-cv1'), '2030-2031/CV/01/V001');
+select t_allow('cash income', t_v('income', '2031-01-17', 'Cash', 'v-cr1', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is a cash receipt', t_no('v-cr1'), '2030-2031/CR/01/V001');
+select t_allow('income by UPI', t_v('income', '2031-01-18', 'UPI', 'v-br1', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is a bank receipt', t_no('v-br1'), '2030-2031/BR/01/V001');
+select t_allow('a cheque expense', t_v('expense', '2031-01-19', 'Cheque', 'v-bv-chq', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...goes through the bank, so it is a bank voucher', 'select voucher_type from entries where note = ''v-bv-chq''', 'BV');
+select t_allow('the next month', t_v('expense', '2031-02-03', 'UPI', 'v-bv-feb', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...restarts the serial', t_no('v-bv-feb'), '2030-2031/BV/02/V001');
+select t_allow('the last day of the financial year', t_v('expense', '2031-03-31', 'UPI', 'v-bv-mar', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is still in 2030-2031', t_no('v-bv-mar'), '2030-2031/BV/03/V001');
+select t_allow('the first day of the next financial year', t_v('expense', '2031-04-01', 'UPI', 'v-bv-apr', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...starts 2031-2032', t_no('v-bv-apr'), '2031-2032/BV/04/V001');
+select t_allow('an entry from before the module starts', t_v('expense', '2026-10-31', 'UPI', 'v-old', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...gets no voucher number', 'select voucher_no is null and voucher_type is null from entries where note = ''v-old''', 'true');
+select t_allow('an entry on the first day', t_v('expense', '2026-11-01', 'Cash', 'v-first', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is a voucher', 'select voucher_no like ''2026-2027/CV/11/V%'' from entries where note = ''v-first''', 'true');
+select t_allow('a client that tries to choose its own number', t_v('expense', '2031-05-02', 'UPI', 'v-hack', '33333333-3333-3333-3333-333333333333', ', voucher_no, voucher_seq, voucher_type', ', ''HACK'', 99, ''CV'''));
+select t_eq('  ...gets the real one anyway', t_no('v-hack'), '2031-2032/BV/05/V001'::text);
+-- Serials are padded to three digits but never truncated past 999.
+reset role;
+insert into voucher_counters (workspace_id, vfy, vkind, vmonth, last) values (:ws, '2031-2032', 'CR', 7, 998);
+:as_editor
+select t_allow('the 999th receipt of a month', t_v('income', '2031-07-05', 'Cash', 'v-999', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is V999', t_no('v-999'), '2031-2032/CR/07/V999');
+select t_allow('the 1000th', t_v('income', '2031-07-06', 'Cash', 'v-1000', '33333333-3333-3333-3333-333333333333'));
+select t_eq('  ...is V1000, not V100', t_no('v-1000'), '2031-2032/CR/07/V1000');
+
+:as_owner
+select t_rows('the owner cannot overwrite a voucher number', 'update entries set voucher_no = ''HACK'', voucher_seq = 7 where note = ''v-bv1''', 1);
+select t_eq('  ...it is unchanged', t_no('v-bv1'), '2030-2031/BV/01/V001');
+select t_allow('editing the amount', 'update entries set amount = 55 where note = ''v-bv1''');
+select t_eq('  ...keeps the number', t_no('v-bv1'), '2030-2031/BV/01/V001');
+select t_allow('paying in a different way (cash becomes UPI)', 'update entries set payment_mode = ''UPI'' where note = ''v-cv1''');
+select t_eq('  ...moves it to a bank voucher with the next serial', t_no('v-cv1'), '2030-2031/BV/01/V004');
+select t_eq('  ...and the old number stays in the history', 'select count(*) from entry_log where snapshot->>''voucher_no'' = ''2030-2031/CV/01/V001''', '1');
+select t_allow('changing the date to another month', 'update entries set entry_date = ''2031-02-10'' where note = ''v-bv2''');
+select t_eq('  ...moves it into that month''s series', t_no('v-bv2'), '2030-2031/BV/02/V002');
+select t_allow('deleting a voucher', 'delete from entries where note = ''v-bv-chq''');
+select t_allow('a new bank voucher after a delete', t_v('expense', '2031-01-25', 'UPI', 'v-after-delete', '11111111-1111-1111-1111-111111111111'));
+select t_eq('  ...does not reuse a number', t_no('v-after-delete'), '2030-2031/BV/01/V005');
+select t_eq('two numbers are never the same', 'select count(*) - count(distinct voucher_no) from entries where voucher_no is not null', '0');
+select t_allow('moving an entry back before the start', 'update entries set entry_date = ''2026-10-01'' where note = ''v-first''');
+select t_eq('  ...drops its voucher number', 'select voucher_no is null from entries where note = ''v-first''', 'true');
+
+-- A self-voucher: no bill exists. "Bill promised, photo not yet uploaded" is a different state.
+select t_allow('an expense with no bill', t_v('expense', '2031-06-01', 'Cash', 'v-nobill', '11111111-1111-1111-1111-111111111111', ', receipt_available', ', false'));
+select t_eq('  ...is flagged no-bill', 'select no_bill from entries where note = ''v-nobill''', 'true');
+select t_allow('an expense whose bill is still to come', t_v('expense', '2031-06-02', 'Cash', 'v-tocome', '11111111-1111-1111-1111-111111111111', ', receipt_available', ', true'));
+select t_eq('  ...is not flagged no-bill', 'select no_bill from entries where note = ''v-tocome''', 'false');
+select t_allow('an expense with a bill photo', t_v('expense', '2031-06-03', 'Cash', 'v-billed', '11111111-1111-1111-1111-111111111111', ', receipt_available, bill_path', ', false, ''x/y.jpg'''));
+select t_eq('  ...is not flagged no-bill', 'select no_bill from entries where note = ''v-billed''', 'false');
+select t_eq('income is never flagged no-bill', 'select count(*) from entries where type = ''income'' and no_bill', '0');
+
+-- Journal vouchers
+select t_allow('the owner may add a journal voucher (move between heads)',
+  t_v('journal', '2031-01-22', 'Journal', 'v-jv1', '11111111-1111-1111-1111-111111111111', ', jv_kind, dr_category_id, cr_category_id', ', ''transfer'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'''));
+select t_eq('  ...it is numbered JV', t_no('v-jv1'), '2030-2031/JV/01/V001');
+select t_allow('a bill not yet paid (credits Outstanding expenses, so no credit head)',
+  t_v('journal', '2031-01-23', 'Journal', 'v-jv2', '11111111-1111-1111-1111-111111111111', ', jv_kind, dr_category_id', ', ''unpaid_bill'', ''c0000000-0000-0000-0000-000000000001'''));
+select t_eq('  ...next serial', t_no('v-jv2'), '2030-2031/JV/01/V002');
+select t_deny('a journal needs a debit head',
+  t_v('journal', '2031-01-24', 'Journal', 'v-bad1', '11111111-1111-1111-1111-111111111111', ', jv_kind, cr_category_id', ', ''correction'', ''c0000000-0000-0000-0000-000000000002'''));
+select t_deny('a transfer cannot debit and credit the same head',
+  t_v('journal', '2031-01-24', 'Journal', 'v-bad2', '11111111-1111-1111-1111-111111111111', ', jv_kind, dr_category_id, cr_category_id', ', ''transfer'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000001'''));
+select t_deny('a transfer needs a credit head',
+  t_v('journal', '2031-01-24', 'Journal', 'v-bad3', '11111111-1111-1111-1111-111111111111', ', jv_kind, dr_category_id', ', ''transfer'', ''c0000000-0000-0000-0000-000000000001'''));
+select t_deny('an unpaid bill has no credit head of its own',
+  t_v('journal', '2031-01-24', 'Journal', 'v-bad4', '11111111-1111-1111-1111-111111111111', ', jv_kind, dr_category_id, cr_category_id', ', ''unpaid_bill'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'''));
+select t_deny('a journal needs a kind',
+  t_v('journal', '2031-01-24', 'Journal', 'v-bad5', '11111111-1111-1111-1111-111111111111', ', dr_category_id', ', ''c0000000-0000-0000-0000-000000000001'''));
+select t_deny('a journal needs a narration saying why',
+  'insert into entries (workspace_id, type, entry_date, amount, payment_mode, created_by, jv_kind, dr_category_id) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''journal'', ''2031-01-24'', 10, ''Journal'', ''11111111-1111-1111-1111-111111111111'', ''unpaid_bill'', ''c0000000-0000-0000-0000-000000000001'')');
+select t_deny('an expense cannot carry journal fields',
+  t_v('expense', '2031-01-24', 'Cash', 'v-bad6', '11111111-1111-1111-1111-111111111111', ', dr_category_id', ', ''c0000000-0000-0000-0000-000000000001'''));
+select t_deny('a journal of nothing is refused',
+  'insert into entries (workspace_id, type, entry_date, amount, payment_mode, created_by, jv_kind, dr_category_id) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''journal'', ''2031-01-24'', 0, ''Journal'', ''11111111-1111-1111-1111-111111111111'', ''unpaid_bill'', ''c0000000-0000-0000-0000-000000000001'')');
+select t_deny('a head with journal postings cannot be deleted', 'delete from categories where id = ''c0000000-0000-0000-0000-000000000002''');
+select t_eq('a journal voucher does not count as cash or bank', 'select count(*) from entries where type = ''journal'' and voucher_type <> ''JV''', '0');
+:as_admin
+select t_allow('an admin may add a journal voucher',
+  t_v('journal', '2031-01-26', 'Journal', 'v-jv3', '22222222-2222-2222-2222-222222222222', ', jv_kind, dr_category_id, cr_category_id', ', ''correction'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'''));
+:as_editor
+select t_deny('an editor cannot add a journal voucher',
+  t_v('journal', '2031-01-27', 'Journal', 'v-jv-editor', '33333333-3333-3333-3333-333333333333', ', jv_kind, dr_category_id, cr_category_id', ', ''transfer'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'''));
+select t_deny('an editor cannot turn their own entry into a journal',
+  'update entries set type = ''journal'', jv_kind = ''correction'', dr_category_id = ''c0000000-0000-0000-0000-000000000001'', cr_category_id = ''c0000000-0000-0000-0000-000000000002'' where note = ''v-br1''');
+:as_owner
+select t_allow('the owner may delete a journal voucher', 'delete from entries where note = ''v-jv3''');
+-- The voucher counters are the database's own business.
+:as_editor
+select t_eq('an editor cannot read the voucher counters', 'select count(*) from voucher_counters', '0');
+select t_deny('an editor cannot write the voucher counters', 'insert into voucher_counters (workspace_id, vfy, vkind, vmonth, last) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''2030-2031'', ''BV'', 1, 0)');
+select t_rows('an editor cannot reset a counter', 'update voucher_counters set last = 0', 0);
+select t_deny('an editor cannot call the numbering trigger as a function', 'select assign_voucher()');
+:as_viewer
+select t_eq('a viewer reads nothing from the voucher counters', 'select count(*) from voucher_counters', '0');
+reset role;
+select t_eq('numbering starts on 1 November 2026 unless a workspace says otherwise', 'select count(*) from workspaces where vouchers_from is distinct from date ''2026-11-01''', '0');
+update workspaces set vouchers_from = null where id = :ws2;
+insert into entries (workspace_id, type, entry_date, amount, payment_mode, created_by) values (:ws2, 'expense', '2031-01-15', 5, 'UPI', :outsider);
+select t_eq('a workspace with numbering switched off gets no numbers', 'select count(*) from entries where workspace_id = ''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'' and voucher_no is not null', '0');
+select t_eq('  ...and no counters', 'select count(*) from voucher_counters where workspace_id = ''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb''', '0');
+
 -- ================================================================ deleting a workspace
 reset role;
 select t_eq('the workspace has history to lose', 'select count(*) > 0 from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');

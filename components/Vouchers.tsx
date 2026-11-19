@@ -6,6 +6,7 @@ import { useWs } from "./WorkspaceProvider";
 import { Modal, btnGhost, btnPrimary } from "./ui";
 import { brand } from "@/lib/brand";
 import { LotusMark } from "./Brand";
+import { VOUCHER_KINDS } from "@/lib/voucher";
 
 function Sheet({ e }: { e: Entry }) {
   const { ws, catName, itemName, personName } = useWs();
@@ -23,9 +24,10 @@ function Sheet({ e }: { e: Entry }) {
         </div>
         <div style={{ height: 1, background: "#b8912a", opacity: 0.6, margin: "10px 0 8px" }} />
         <div style={{ fontSize: 13, color: "#444" }}>{ws.name}</div>
-        <div style={{ letterSpacing: 3, fontWeight: 700, marginTop: 2 }}>PAYMENT VOUCHER</div>
+        <div style={{ letterSpacing: 3, fontWeight: 700, marginTop: 2 }}>{e.voucher_type ? VOUCHER_KINDS[e.voucher_type].label.toUpperCase() : "PAYMENT VOUCHER"}</div>
+        {e.no_bill && <div style={{ display: "inline-block", marginTop: 4, border: "1px solid #111", padding: "1px 8px", fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>NO BILL</div>}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span>Voucher No: <b>V-{e.id.slice(0, 8).toUpperCase()}</b></span><span>Date: <b>{dmy(e.entry_date)}</b></span></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span>Voucher No: <b>{e.voucher_no ?? `V-${e.id.slice(0, 8).toUpperCase()}`}</b></span><span>Date: <b>{dmy(e.entry_date)}</b></span></div>
       {row("Paid to", personName(e.person_id))}{row("Towards", [catName(e.category_id), itemName(e.item_id), e.note].filter(Boolean).join(" · "))}
       {row("Mode of payment", e.payment_mode + (e.reference_no ? ` (Ref ${e.reference_no})` : ""))}
       {row("Amount", `${ws.currency} ${e.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`)}{row("In words", rupeesInWords(e.amount))}

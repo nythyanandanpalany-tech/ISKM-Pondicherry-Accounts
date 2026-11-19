@@ -9,6 +9,8 @@ import { useWs } from "@/components/WorkspaceProvider";
 import Vouchers from "@/components/Vouchers";
 import EntryForm from "@/components/EntryForm";
 import EntryDetail from "@/components/EntryDetail";
+import { NoBillTag, VoucherNo } from "@/components/formKit";
+import { entryHead } from "@/lib/voucher";
 import { Mark, btnGhost, btnPrimary, input, rowActivate, rowClickable } from "@/components/ui";
 
 const SORTS: Record<string, (a: Entry, b: Entry) => number> = {
@@ -48,7 +50,7 @@ export default function Ledger() {
       if (period === "today" && r.entry_date !== t0) return false;
       if (period === "week" && r.entry_date < wk) return false;
       if (period === "month" && !r.entry_date.startsWith(mo)) return false;
-      if (q && !`${r.note ?? ""} ${catName(r.category_id)} ${itemName(r.item_id)} ${personName(r.person_id)} ${r.reference_no ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
+      if (q && !`${r.note ?? ""} ${catName(r.category_id)} ${itemName(r.item_id)} ${personName(r.person_id)} ${r.reference_no ?? ""} ${r.voucher_no ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
       if (fl.from && r.entry_date < fl.from) return false; if (fl.to && r.entry_date > fl.to) return false;
       if (fl.category && r.category_id !== fl.category) return false; if (fl.item && r.item_id !== fl.item) return false;
       if (fl.person && r.person_id !== fl.person) return false; if (fl.mode && r.payment_mode !== fl.mode) return false;
@@ -57,6 +59,7 @@ export default function Ledger() {
       if (fl.benef && !(r.beneficiary ?? "").toLowerCase().includes(fl.benef.toLowerCase())) return false;
       if (fl.claim && (fl.claim === "none" ? r.claim_status : r.claim_status !== fl.claim)) return false;
       if (fl.gap === "nobill" && (r.bill_path || !r.receipt_available)) return false;
+      if (fl.gap === "selfvoucher" && !r.no_bill) return false;
       if (fl.gap === "noproof" && (r.payment_proof_path || !["UPI", "Bank Transfer", "Card"].includes(r.payment_mode))) return false;
       if (fl.gap === "unmatched" && matched.has(r.id)) return false;
       return true;
@@ -94,10 +97,10 @@ export default function Ledger() {
           <div><div className="text-xs text-slate-500">Item</div><select className={input} value={fl.item} onChange={fset("item")}><option value="">All</option>{items.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><div className="text-xs text-slate-500">Member</div><select className={input} value={fl.person} onChange={fset("person")}><option value="">All</option>{people.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           <div><div className="text-xs text-slate-500">Mode</div><select className={input} value={fl.mode} onChange={fset("mode")}><option value="">All</option>{MODES.map((m) => <option key={m}>{m}</option>)}</select></div>
-          <div><div className="text-xs text-slate-500">Type</div><select className={input} value={fl.type} onChange={fset("type")}><option value="">All</option><option value="expense">Expense</option><option value="income">Income</option></select></div>
+          <div><div className="text-xs text-slate-500">Type</div><select className={input} value={fl.type} onChange={fset("type")}><option value="">All</option><option value="expense">Expense</option><option value="income">Income</option><option value="journal">Journal</option></select></div>
           <div><div className="text-xs text-slate-500">Claim status</div><select className={input} value={fl.claim} onChange={fset("claim")}><option value="">All</option><option value="none">Direct (no claim)</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="settled">Settled</option></select></div>
           <div className="sm:col-span-2"><div className="text-xs text-slate-500">Documents</div><select className={input} value={fl.gap} onChange={fset("gap")}>
-            <option value="">All</option><option value="nobill">Bill photo missing</option><option value="noproof">Payment screenshot missing (UPI/bank)</option>{canManage && <option value="unmatched">Not matched to bank</option>}</select></div>
+            <option value="">All</option><option value="nobill">Bill photo missing</option><option value="selfvoucher">No bill (self-voucher)</option><option value="noproof">Payment screenshot missing (UPI/bank)</option>{canManage && <option value="unmatched">Not matched to bank</option>}</select></div>
           {advanced && <div><div className="text-xs text-slate-500">Fund source</div><input className={input} value={fl.fund} onChange={fset("fund")} /></div>}
           {advanced && <div><div className="text-xs text-slate-500">Beneficiary</div><input className={input} value={fl.benef} onChange={fset("benef")} /></div>}
           <button className="text-sm text-indigo-600" onClick={() => setFl({ from: "", to: "", category: "", item: "", person: "", mode: "", type: "", claim: "", gap: "", fund: "", benef: "" })}>Clear</button>
@@ -109,14 +112,15 @@ export default function Ledger() {
       </div>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface shadow-card">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Category / Item</th><th>Member</th><th>Mode</th><th>Status</th><th className="text-right">Amount</th><th className="px-3">Bill</th><th>Payment</th>{canManage && <th>Bank</th>}</tr></thead>
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Voucher</th><th>Category / Item</th><th>Member</th><th>Mode</th><th>Status</th><th className="text-right">Amount</th><th className="px-3">Bill</th><th>Payment</th>{canManage && <th>Bank</th>}</tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={9} className="p-6 text-center text-slate-400">Loading…</td></tr>}
-            {!loading && !shown.length && <tr><td colSpan={9} className="p-6 text-center text-slate-400">No entries for these filters.</td></tr>}
+            {loading && <tr><td colSpan={10} className="p-6 text-center text-slate-400">Loading…</td></tr>}
+            {!loading && !shown.length && <tr><td colSpan={10} className="p-6 text-center text-slate-400">No entries for these filters.</td></tr>}
             {shown.map((r) => (
               <tr key={r.id} className={rowClickable} {...rowActivate(() => setDetail(r), `Open ${dmy(r.entry_date)} ${catName(r.category_id) || r.type} ${money(r.amount)}`)}>
                 <td className="p-3 whitespace-nowrap">{dmy(r.entry_date)}</td>
-                <td><div className="font-medium">{catName(r.category_id) || "—"}{r.item_id && ` · ${itemName(r.item_id)}`}</div><div className="text-xs text-slate-500">{r.note}</div></td>
+                <td><VoucherNo no={r.voucher_no} /></td>
+                <td><div className="font-medium">{entryHead(r, catName) || "—"}{r.item_id && ` · ${itemName(r.item_id)}`}{r.no_bill && <NoBillTag />}</div><div className="text-xs text-slate-500">{r.note}</div></td>
                 <td>{personName(r.person_id)}</td><td>{r.payment_mode}</td>
                 <td className="text-xs capitalize">{r.claim_status ?? "direct"}</td>
                 <td className={`text-right font-medium whitespace-nowrap ${r.type === "income" ? "text-emerald-600" : ""}`}>{r.type === "income" ? "+" : ""}{money(r.amount)}</td>

@@ -8,30 +8,9 @@ import { useAuth } from "./AuthProvider";
 import { useWs } from "./WorkspaceProvider";
 import { Modal, Receipt, btnGhost, btnPrimary, input } from "./ui";
 import { CameraIcon, GalleryIcon, InflowIcon, OutflowIcon } from "./Icons";
-
-const lbl = "mb-1 block text-xs font-medium text-slate-600";
-/* Section heading, set like the sidebar's "Seva" / "More" dividers so the dialog
-   reads as part of the same shell rather than a form pasted into it. */
-const sec = "text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400";
-const hint = "text-xs text-slate-500";
-
-/* A tappable choice. The radio stays in the DOM but visually hidden, so arrow keys,
-   screen readers and the focus ring all behave the way a native radio group does —
-   a row of <button>s would have given up all three. */
-const tile = "relative flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition focus-within:ring-2 focus-within:ring-indigo-500";
-const tileOn = "border-indigo-600 bg-indigo-600 text-white shadow-card";
-const tileOff = "border-slate-300 bg-surface text-slate-600 hover:border-indigo-400 hover:bg-hover";
-
-function Choice({ name, checked, onSelect, children }: {
-  name: string; checked: boolean; onSelect: () => void; children: React.ReactNode;
-}) {
-  return (
-    <label className={`${tile} ${checked ? tileOn : tileOff}`}>
-      <input type="radio" name={name} checked={checked} onChange={onSelect} className="sr-only" />
-      {children}
-    </label>
-  );
-}
+import { Choice, hint, lbl, sec } from "./formKit";
+import JournalForm from "./JournalForm";
+import { VOUCHER_KINDS, voucherPreview } from "@/lib/voucher";
 
 function FilePick({ title, note, required, file, existing, onFile, onClear }: {
   title: string; note: string; required?: boolean; file: File | null; existing: string | null; onFile: (f: File) => void; onClear: () => void;
@@ -89,12 +68,21 @@ function FilePick({ title, note, required, file, existing, onFile, onClear }: {
   );
 }
 
-export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; onClose: () => void; onSaved: () => void }) {
+type Props = { entry?: Entry; onClose: () => void; onSaved: () => void };
+
+/** Expense / income, or — for owners and admins — a journal voucher, which has a form of its own. */
+export default function EntryForm(props: Props) {
+  const [journal, setJournal] = useState(props.entry?.type === "journal");
+  if (journal) return <JournalForm {...props} onBack={props.entry ? undefined : () => setJournal(false)} />;
+  return <EntryFormBody {...props} onJournal={() => setJournal(true)} />;
+}
+
+function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJournal: () => void }) {
   const { profile, advanced } = useAuth();
-  const { ws, categories, items, people, reload, catName, money } = useWs();
+  const { ws, categories, items, people, reload, catName, money, canManage } = useWs();
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
-  const [type, setType] = useState<"expense" | "income">(entry?.type ?? "expense");
+  const [type, setType] = useState<"expense" | "income">(entry?.type === "income" ? "income" : "expense");
   const [f, setF] = useState({
     entry_date: entry?.entry_date ?? today(), amount: entry?.amount?.toString() ?? "", category_id: entry?.category_id ?? "",
     item_id: entry?.item_id ?? "", person_id: entry?.person_id ?? "", payment_mode: entry?.payment_mode ?? "Cash",
@@ -118,6 +106,8 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
   const valid = Number.isFinite(amt) && amt > 0;
   // Only ₹ gets the words, since rupeesInWords names the unit itself.
   const words = valid && ws.currency === "₹" ? rupeesInWords(amt) : "";
+  const preview = voucherPreview(type, f.payment_mode, f.entry_date, ws.vouchers_from);
+  const sameSeries = !!entry?.voucher_no && !!preview && entry.voucher_type === preview.kind && entry.voucher_fy === preview.series.split("/")[0] && entry.voucher_month === Number(f.entry_date.slice(5, 7));
   const summary = [valid ? money(amt) : null, catName(f.category_id) || null, f.payment_mode, f.entry_date ? dmy(f.entry_date) : null].filter(Boolean).join(" · ");
 
   async function upload(file: File) {
@@ -171,13 +161,26 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
         {/* Expense or income — the one choice that re-shapes everything below it, so it leads. */}
         <fieldset>
           <legend className="sr-only">Entry type</legend>
-          <div className="grid grid-cols-2 gap-2 sm:max-w-md">
+          <div className={`grid grid-cols-2 gap-2 ${canManage && !entry ? "sm:max-w-xl sm:grid-cols-3" : "sm:max-w-md"}`}>
             {([["expense", "Expense", <OutflowIcon key="o" className="h-5 w-5" />], ["income", "Income", <InflowIcon key="i" className="h-5 w-5" />]] as const).map(([t, label, icon]) => (
               <Choice key={t} name={id("type")} checked={type === t} onSelect={() => { setType(t); setF({ ...f, category_id: "", item_id: "", claim: false }); }}>
                 {icon}{label}
               </Choice>
             ))}
+            {/* Owners and admins only; a journal moves no cash or bank money, so it has its own form. */}
+            {canManage && !entry && (
+              <Choice name={id("type")} checked={false} onSelect={onJournal}>Journal</Choice>
+            )}
           </div>
+          {/* Which voucher this becomes, so nobody has to know the CV / BV / CR / BR rule. */}
+          <p className={`mt-2 ${hint}`} aria-live="polite">
+            {preview
+              ? sameSeries
+                ? <>Voucher <span className="font-mono font-medium text-slate-700">{entry!.voucher_no}</span> · {VOUCHER_KINDS[preview.kind].label}</>
+                : <>Recorded as a <b className="font-semibold text-slate-700">{VOUCHER_KINDS[preview.kind].label} ({preview.kind})</b>
+                    {entry?.voucher_no ? <> — it will move from <span className="font-mono">{entry.voucher_no}</span> to a new number in the <span className="font-mono">{preview.series}</span> series.</> : <> — numbered <span className="font-mono">{preview.series}/V…</span> when saved.</>}</>
+              : ws.vouchers_from ? <>Dated before {dmy(ws.vouchers_from)}, when voucher numbering starts — this entry gets no voucher number.</> : null}
+          </p>
         </fieldset>
 
         <div className="grid gap-5 lg:grid-cols-5">
@@ -291,7 +294,7 @@ export default function EntryForm({ entry, onClose, onSaved }: { entry?: Entry; 
                 {[true, false].map((v) => <Choice key={String(v)} name={id("rec")} checked={f.receipt_available === v} onSelect={() => setF({ ...f, receipt_available: v })}>{v ? "Yes" : "No"}</Choice>)}
               </div>
               <p className={`mt-2 ${needBill ? "text-xs text-amber-800" : hint}`}>
-                {needBill ? "Attach the bill photo below, or answer “No” to save without one." : f.receipt_available ? "The bill photo below is required." : "Saving without a bill is allowed — the Ledger will not flag this entry."}
+                {needBill ? "Attach the bill photo below, or answer “No” to save without one." : f.receipt_available ? "The bill photo below is required." : type === "expense" && !hasBill ? "Saving without a bill is allowed — it is kept as a self-voucher and marked “No bill”." : "Saving without a bill is allowed."}
               </p>
             </fieldset>
             <FilePick title="Bill / invoice photo" note="The bill this payment was made for. Photos are shrunk automatically to save space." required={f.receipt_available} file={bill}

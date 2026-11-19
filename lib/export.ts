@@ -1,9 +1,10 @@
 import * as XLSX from "xlsx";
 import type { Entry } from "./types";
+import { VOUCHER_KINDS, entryHead } from "./voucher";
 
 export function toExcel(rows: Entry[], names: { cat: (id: string | null) => string; item: (id: string | null) => string; person: (id: string | null) => string }, file = "ledger.xlsx") {
   const data = rows.map((e) => ({
-    "Bill Date": e.entry_date, Type: e.type, Category: names.cat(e.category_id), Item: names.item(e.item_id), Member: names.person(e.person_id),
+    "Bill Date": e.entry_date, "Voucher No": e.voucher_no ?? "", Voucher: e.voucher_type ? VOUCHER_KINDS[e.voucher_type].label : "", Type: e.type, Category: entryHead(e, names.cat), "No bill": e.no_bill ? "Yes" : "", Item: names.item(e.item_id), Member: names.person(e.person_id),
     Mode: e.payment_mode, Status: e.claim_status ?? "direct", Receipt: e.bill_path ? "Yes" : e.receipt_available ? "Missing" : "No",
     "Payment screenshot": e.payment_proof_path ? "Yes" : "No", Reference: e.reference_no ?? "", "Fund source": e.fund_source ?? "", Beneficiary: e.beneficiary ?? "", Note: e.note ?? "", Amount: e.amount,
   }));
@@ -11,7 +12,7 @@ export function toExcel(rows: Entry[], names: { cat: (id: string | null) => stri
 }
 
 export function toCsv(rows: Entry[], names: { cat: (id: string | null) => string; item: (id: string | null) => string; person: (id: string | null) => string }, file = "ledger.csv") {
-  const ws = XLSX.utils.json_to_sheet(rows.map((e) => ({ Date: e.entry_date, Type: e.type, Category: names.cat(e.category_id), Item: names.item(e.item_id), Member: names.person(e.person_id), Mode: e.payment_mode, Status: e.claim_status ?? "direct", Note: e.note ?? "", Amount: e.amount })));
+  const ws = XLSX.utils.json_to_sheet(rows.map((e) => ({ Date: e.entry_date, "Voucher No": e.voucher_no ?? "", Type: e.type, Category: entryHead(e, names.cat), "No bill": e.no_bill ? "Yes" : "", Item: names.item(e.item_id), Member: names.person(e.person_id), Mode: e.payment_mode, Status: e.claim_status ?? "direct", Note: e.note ?? "", Amount: e.amount })));
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([XLSX.utils.sheet_to_csv(ws)], { type: "text/csv" })); a.download = file; a.click();
 }
 

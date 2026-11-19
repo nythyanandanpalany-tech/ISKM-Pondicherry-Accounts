@@ -90,9 +90,11 @@ from the server.
   and log every entry change, the RPCs the screens call, and all permissions as row level security — roles
   (owner/admin/editor/viewer), "see only own entries", claim approval, chat privacy, photo access for members only.
 - `supabase/migrations/` — the same thing split into ordered files, for the Supabase CLI. `schema.sql` is these concatenated.
+  `20260101000005_vouchers.sql` adds the accounting module's numbered vouchers (below). On a project that is already
+  running, paste just that file into the SQL Editor — it numbers the entries already made from 1 November 2026.
 - `supabase/tests/` — the policy tests. `npm run test:rls` applies the schema to a scratch database on any PostgreSQL
   you point it at (`PGHOST`/`PGPORT`/`PGUSER`) and asserts that each role can do exactly what it should and nothing
-  more — 55 checks. No Docker or Supabase account needed. See `supabase/tests/README.md`.
+  more — 131 checks, including voucher numbering. No Docker or Supabase account needed. See `supabase/tests/README.md`.
 
 ## Branding & look (ISKM Pondicherry)
 
@@ -133,3 +135,35 @@ the daily report letterhead. Handing the app to another centre means editing tha
 - Any signed-in user can check whether an email is registered (needed for "add member by email").
 - A free Supabase project is paused after ~1 week of inactivity; the daily keep-alive ping prevents this.
 - Donation receipts/letterhead are intentionally not built yet.
+
+## Vouchers (accounting module, from 1 November 2026)
+
+Every entry dated on or after the workspace's `vouchers_from` date (`workspaces.vouchers_from`, default
+`2026-11-01`; set it to `NULL` to switch numbering off) is a numbered voucher, in the style the temple's paper
+vouchers already use:
+
+```
+2026-2027 / BV / 11 / V018
+financial year (April–March) · type · month of the entry date · serial
+```
+
+| Type | Meaning | Chosen from |
+|---|---|---|
+| `CV` | Cash Voucher | expense paid in **Cash** |
+| `BV` | Bank Voucher | expense paid any other way (UPI, bank transfer, cheque, card, other) |
+| `CR` | Cash Receipt | income received in **Cash** |
+| `BR` | Bank Receipt | income received any other way |
+| `JV` | Journal Voucher | an adjustment with no cash or bank movement — owners and admins only |
+
+- The serial restarts every month, separately for each type. A database trigger issues it, so two people saving at
+  the same moment never get the same number; the browser cannot choose or change one.
+- Changing an entry's mode between cash and bank, or its date to another month or year, issues a number from the
+  right series. The old number is never reused and stays in the entry's history.
+- Deleting a voucher leaves a gap in the serial. That is deliberate (the history shows what was deleted).
+- A **journal voucher** debits one head and credits another — a bill not yet paid (credits *Outstanding expenses*),
+  an amount moved between heads, or a mistake corrected — with a required narration. A head that has journal
+  postings cannot be deleted.
+- An expense with no bill is a self-voucher and is marked **No bill** (derived: nothing attached and "Receipt / bill
+  available?" answered No — a bill that is promised but not yet uploaded stays under *Bills missing*).
+- `lib/voucher.ts` mirrors the numbering rules for the entry form's preview; `lib/tests/pure.test.mjs` and
+  `supabase/tests/rls.test.sql` pin both to the same examples.

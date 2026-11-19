@@ -1,4 +1,5 @@
 import type { Category, Entry, Item, Person } from "./types";
+import { VOUCHERS_FROM, financialYear, formatVoucherNo, voucherKind } from "./voucher";
 
 /**
  * When NEXT_PUBLIC_SEED_DUMMY_DATA=true, the ledger (entries/categories/items/people)
@@ -59,9 +60,26 @@ export const DUMMY_PEOPLE: Person[] = [
   { id: "dummy-p-anand", workspace_id: "", name: "Anand Kumar" },
 ];
 
-const base = { created_by: "dummy-user", created_at: now(), updated_at: now(), claim_settled_at: null as string | null, bill_path: null as string | null, payment_proof_path: null as string | null, fund_source: null as string | null, beneficiary: null as string | null };
+const base = {
+  created_by: "dummy-user", created_at: now(), updated_at: now(), claim_settled_at: null as string | null, bill_path: null as string | null, payment_proof_path: null as string | null, fund_source: null as string | null, beneficiary: null as string | null,
+  // Voucher numbers and no_bill are filled in by withVouchers() below, the way the database trigger would.
+  voucher_type: null, voucher_no: null, voucher_fy: null, voucher_month: null, voucher_seq: null, no_bill: false,
+  jv_kind: null, dr_category_id: null as string | null, cr_category_id: null as string | null,
+};
 
-export const DUMMY_ENTRIES: Entry[] = [
+/** Number the sample entries the way the database does: oldest first, serial restarting per type and month. */
+function withVouchers(list: Entry[]): Entry[] {
+  const used = new Map<string, number>();
+  const numbered = new Map<string, Partial<Entry>>();
+  [...list].sort((a, b) => a.entry_date.localeCompare(b.entry_date)).forEach((e) => {
+    const kind = voucherKind(e.type, e.payment_mode), fy = financialYear(e.entry_date), month = Number(e.entry_date.slice(5, 7));
+    const key = `${fy}/${kind}/${month}`, seq = (used.get(key) ?? 0) + 1; used.set(key, seq);
+    numbered.set(e.id, e.entry_date >= VOUCHERS_FROM ? { voucher_type: kind, voucher_fy: fy, voucher_month: month, voucher_seq: seq, voucher_no: formatVoucherNo(fy, kind, month, seq) } : {});
+  });
+  return list.map((e) => ({ ...e, ...numbered.get(e.id), no_bill: e.type === "expense" && !e.receipt_available && !e.bill_path }));
+}
+
+const RAW: Entry[] = [
   { ...base, id: "dummy-1", workspace_id: "", type: "expense", entry_date: iso(0), amount: 650, category_id: "dummy-cat-puja", item_id: "dummy-item-flowers", person_id: "dummy-p-ramesh", payment_mode: "Cash", note: "Flowers & garlands for evening aarti", reference_no: null, receipt_available: true, claim_status: null },
   { ...base, id: "dummy-2", workspace_id: "", type: "expense", entry_date: iso(1), amount: 2200, category_id: "dummy-cat-veg", item_id: "dummy-item-rice", person_id: "dummy-p-sita", payment_mode: "UPI", note: "Weekly rice & provisions", reference_no: "412233445566", receipt_available: true, claim_status: null },
   { ...base, id: "dummy-3", workspace_id: "", type: "income", entry_date: iso(2), amount: 5000, category_id: "dummy-cat-don", item_id: null, person_id: "dummy-p-anand", payment_mode: "UPI", note: "Monthly donation", reference_no: "R-2041", receipt_available: false, claim_status: null },
@@ -73,3 +91,5 @@ export const DUMMY_ENTRIES: Entry[] = [
   { ...base, id: "dummy-9", workspace_id: "", type: "expense", entry_date: iso(8), amount: 980, category_id: "dummy-cat-veg", item_id: null, person_id: "dummy-p-ramesh", payment_mode: "Cash", note: "Vegetables for Sunday annadanam", reference_no: null, receipt_available: false, claim_status: null },
   { ...base, id: "dummy-10", workspace_id: "", type: "expense", entry_date: iso(10), amount: 560, category_id: "dummy-cat-print", item_id: null, person_id: "dummy-p-sita", payment_mode: "UPI", note: "Receipt books & stationery", reference_no: "412998877665", receipt_available: true, claim_status: null },
 ];
+
+export const DUMMY_ENTRIES: Entry[] = withVouchers(RAW);
