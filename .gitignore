@@ -44,3 +44,6 @@ next-env.d.ts
 *-debug.log
 ui-debug.log
 undefined*
+
+# end-to-end run output
+/e2e/.artifacts/
