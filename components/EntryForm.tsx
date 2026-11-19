@@ -11,6 +11,7 @@ import { CameraIcon, GalleryIcon, InflowIcon, OutflowIcon } from "./Icons";
 import { Choice, hint, lbl, sec } from "./formKit";
 import JournalForm from "./JournalForm";
 import { VOUCHER_KINDS, voucherPreview } from "@/lib/voucher";
+import { isCash } from "@/lib/accounts";
 
 function FilePick({ title, note, required, file, existing, onFile, onClear }: {
   title: string; note: string; required?: boolean; file: File | null; existing: string | null; onFile: (f: File) => void; onClear: () => void;
@@ -79,7 +80,7 @@ export default function EntryForm(props: Props) {
 
 function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJournal: () => void }) {
   const { profile, advanced } = useAuth();
-  const { ws, categories, items, people, reload, catName, money, canManage } = useWs();
+  const { ws, categories, items, people, banks, reload, catName, money, canManage } = useWs();
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
   const [type, setType] = useState<"expense" | "income">(entry?.type === "income" ? "income" : "expense");
@@ -87,8 +88,10 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
     entry_date: entry?.entry_date ?? today(), amount: entry?.amount?.toString() ?? "", category_id: entry?.category_id ?? "",
     item_id: entry?.item_id ?? "", person_id: entry?.person_id ?? "", payment_mode: entry?.payment_mode ?? "Cash",
     note: entry?.note ?? "", fund_source: entry?.fund_source ?? "", beneficiary: entry?.beneficiary ?? "", reference_no: entry?.reference_no ?? "", receipt_available: entry?.receipt_available ?? false,
-    claim: !!entry?.claim_status,
+    claim: !!entry?.claim_status, bank_account_id: entry?.bank_account_id ?? "", settles: entry?.settles_entry_id ?? "",
   });
+  // Unpaid-bill journals this payment could clear (owners and admins only; the database enforces that too).
+  const [bills, setBills] = useState<{ id: string; label: string; left: number; cat: string | null }[]>([]);
   const [newPerson, setNewPerson] = useState("");
   const [proof, setProof] = useState<File | null>(null); const [bill, setBill] = useState<File | null>(null);
   const [dropProof, setDropProof] = useState(false); const [dropBill, setDropBill] = useState(false);
@@ -100,6 +103,26 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
   const isOther = selectedCat?.name === "Other" || selectedCat?.name === "Other Income";
   const hasBill = !!bill || (!!entry?.bill_path && !dropBill);
   const needBill = f.receipt_available && !hasBill;
+  useEffect(() => {
+    if (!canManage || type !== "expense") return;
+    let live = true;
+    (async () => {
+      const [j, p] = await Promise.all([
+        db.from("entries").select("id, amount, entry_date, voucher_no, dr_category_id").eq("workspace_id", ws.id).eq("type", "journal").eq("jv_kind", "unpaid_bill"),
+        db.from("entries").select("id, amount, settles_entry_id").eq("workspace_id", ws.id).not("settles_entry_id", "is", null),
+      ]);
+      if (!live) return;
+      const paid = new Map<string, number>();
+      // This entry's own earlier payment does not count against the bill it is being edited to settle.
+      for (const x of (p.data as { id: string; amount: number; settles_entry_id: string }[]) ?? []) if (x.id !== entry?.id) paid.set(x.settles_entry_id, (paid.get(x.settles_entry_id) ?? 0) + Number(x.amount));
+      setBills(((j.data as { id: string; amount: number; entry_date: string; voucher_no: string | null; dr_category_id: string | null }[]) ?? [])
+        .map((x) => ({ id: x.id, left: Math.round((Number(x.amount) - (paid.get(x.id) ?? 0)) * 100) / 100, cat: x.dr_category_id, no: x.voucher_no, on: x.entry_date }))
+        .filter((x) => x.left > 0.004 || x.id === entry?.settles_entry_id)
+        .map((x) => ({ id: x.id, left: x.left, cat: x.cat, label: `${x.no ?? "Journal"} · ${dmy(x.on)} · ${catName(x.cat) || "—"} · ${money(x.left)} unpaid` })));
+    })();
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage, type, ws.id, entry?.id]);
   const digital = f.payment_mode === "UPI" || f.payment_mode === "Bank Transfer" || f.payment_mode === "Card";
 
   const amt = parseFloat(f.amount);
@@ -107,6 +130,8 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
   // Only ₹ gets the words, since rupeesInWords names the unit itself.
   const words = valid && ws.currency === "₹" ? rupeesInWords(amt) : "";
   const preview = voucherPreview(type, f.payment_mode, f.entry_date, ws.vouchers_from);
+  const viaBank = !isCash(f.payment_mode);
+  const needBank = !!preview && viaBank && banks.length > 0 && !f.bank_account_id;
   const sameSeries = !!entry?.voucher_no && !!preview && entry.voucher_type === preview.kind && entry.voucher_fy === preview.series.split("/")[0] && entry.voucher_month === Number(f.entry_date.slice(5, 7));
   const summary = [valid ? money(amt) : null, catName(f.category_id) || null, f.payment_mode, f.entry_date ? dmy(f.entry_date) : null].filter(Boolean).join(" · ");
 
@@ -126,6 +151,7 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
     if (!f.amount.trim() || !valid) return setErr("Enter a valid amount greater than 0.");
     if (f.person_id === "__new" && !newPerson.trim()) return setErr(`Enter the new ${type === "expense" ? "payer's" : "sender's"} name, or pick someone from the list.`);
     if (needBill) return setErr("Attach the bill photo, or set “Receipt available” to No.");
+    if (needBank) return setErr("Choose which bank account this went through.");
     if (isOther && !f.note.trim()) return setErr(type === "expense" ? "Please specify what this expense was for." : "Please specify what this income was from.");
     setBusy(true); setErr("");
     try {
@@ -144,6 +170,7 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
       const row = {
         type, entry_date: f.entry_date, amount: parseFloat(f.amount), category_id: f.category_id || null, item_id: f.item_id || null,
         person_id, payment_mode: f.payment_mode, note: f.note.trim() || null, reference_no: f.reference_no.trim() || null,
+        bank_account_id: viaBank && f.bank_account_id ? f.bank_account_id : null, settles_entry_id: type === "expense" && f.settles ? f.settles : null,
         receipt_available: f.receipt_available, fund_source: f.fund_source.trim() || null, beneficiary: f.beneficiary.trim() || null, bill_path, payment_proof_path, claim_status,
       };
       const { error } = entry
@@ -263,6 +290,28 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
                   {f.person_id === "__new" && <input className={`${input} mt-2`} aria-label="Full name" placeholder="Full name" value={newPerson} onChange={(e) => setNewPerson(e.target.value)} required />}
                 </div>
               </div>
+              {viaBank && banks.length > 0 && (
+                <div>
+                  <label htmlFor={id("bank")} className={lbl}>Bank account{preview && <span className="text-red-600" aria-hidden="true"> *</span>}</label>
+                  <select id={id("bank")} className={input} value={f.bank_account_id} onChange={set("bank_account_id")}>
+                    <option value="">{type === "expense" ? "Which bank was it paid from?" : "Which bank did it come into?"}</option>
+                    {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {type === "expense" && canManage && (bills.length > 0 || !!f.settles) && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <label htmlFor={id("settles")} className={lbl}>Does this pay a bill that was already booked as unpaid?</label>
+                  <select id={id("settles")} className={input} value={f.settles} onChange={(e) => {
+                    const b = bills.find((x) => x.id === e.target.value);
+                    setF({ ...f, settles: e.target.value, ...(b ? { category_id: b.cat ?? f.category_id, amount: f.amount || String(b.left) } : {}) });
+                  }}>
+                    <option value="">No — an ordinary expense</option>
+                    {bills.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+                  </select>
+                  <p className={`mt-1 ${hint}`}>{f.settles ? "The expense was charged when the bill was booked, so this payment only clears what is owed — it is not counted as an expense a second time." : "Choose one so the bill is not charged to expenses twice."}</p>
+                </div>
+              )}
               {type === "expense" && (
                 <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition focus-within:ring-2 focus-within:ring-indigo-500 ${f.claim ? "border-indigo-600 bg-indigo-50" : "border-slate-300 hover:bg-hover"}`}>
                   <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600" checked={f.claim} onChange={(e) => setF({ ...f, claim: e.target.checked })} />

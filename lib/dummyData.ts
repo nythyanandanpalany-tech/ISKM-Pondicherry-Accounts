@@ -13,15 +13,15 @@ const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86400000).toISO
 const now = () => new Date().toISOString();
 
 export const DUMMY_CATEGORIES: Category[] = [
-  { id: "dummy-cat-veg", workspace_id: "", name: "Vegetables & Annadanam", kind: "expense", monthly_limit: 25000 },
-  { id: "dummy-cat-puja", workspace_id: "", name: "Puja Supplies", kind: "expense", monthly_limit: 15000 },
-  { id: "dummy-cat-util", workspace_id: "", name: "Utilities", kind: "expense", monthly_limit: null },
-  { id: "dummy-cat-maint", workspace_id: "", name: "Maintenance & Repairs", kind: "expense", monthly_limit: null },
-  { id: "dummy-cat-fest", workspace_id: "", name: "Festival & Events", kind: "expense", monthly_limit: null },
-  { id: "dummy-cat-print", workspace_id: "", name: "Printing & Stationery", kind: "expense", monthly_limit: null },
-  { id: "dummy-cat-don", workspace_id: "", name: "Donation", kind: "income", monthly_limit: null },
-  { id: "dummy-cat-hundi", workspace_id: "", name: "Hundi", kind: "income", monthly_limit: null },
-  { id: "dummy-cat-seva", workspace_id: "", name: "Seva", kind: "income", monthly_limit: null },
+  { id: "dummy-cat-veg", workspace_id: "", name: "Vegetables & Annadanam", kind: "expense", monthly_limit: 25000, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-puja", workspace_id: "", name: "Puja Supplies", kind: "expense", monthly_limit: 15000, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-util", workspace_id: "", name: "Utilities", kind: "expense", monthly_limit: null, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-maint", workspace_id: "", name: "Maintenance & Repairs", kind: "expense", monthly_limit: null, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-fest", workspace_id: "", name: "Festival & Events", kind: "expense", monthly_limit: null, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-print", workspace_id: "", name: "Printing & Stationery", kind: "expense", monthly_limit: null, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-don", workspace_id: "", name: "Donation", kind: "income", monthly_limit: null, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-hundi", workspace_id: "", name: "Hundi", kind: "income", monthly_limit: null, book: "temple", is_capital: false, section: null },
+  { id: "dummy-cat-seva", workspace_id: "", name: "Seva", kind: "income", monthly_limit: null, book: "temple", is_capital: false, section: null },
 ];
 
 export const DUMMY_ITEMS: Item[] = [
@@ -65,6 +65,7 @@ const base = {
   // Voucher numbers and no_bill are filled in by withVouchers() below, the way the database trigger would.
   voucher_type: null, voucher_no: null, voucher_fy: null, voucher_month: null, voucher_seq: null, no_bill: false,
   jv_kind: null, dr_category_id: null as string | null, cr_category_id: null as string | null,
+  bank_account_id: null as string | null, settles_entry_id: null as string | null,
 };
 
 /** Number the sample entries the way the database does: oldest first, serial restarting per type and month. */

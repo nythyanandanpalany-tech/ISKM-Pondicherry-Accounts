@@ -137,8 +137,31 @@ function dummyBuilder(table: string) {
   return b;
 }
 
+/**
+ * Reads and writes to the tables answer with `{ data, error }`; the error is Postgres's own words
+ * ("update or delete on table … violates foreign key constraint …"). Wrap every builder so that
+ * once it is awaited, the error is the plain-language one from `fail` — the way auth, rpc and
+ * storage errors already were. Chained calls (.select().eq().order()…) stay wrapped to the end.
+ */
+function softened<T extends object>(builder: T): T {
+  return new Proxy(builder, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target) as unknown;
+      if (prop === "then" && typeof value === "function") {
+        return (resolve?: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+          (value as (a?: unknown, b?: unknown) => unknown).call(target, (r: { error?: unknown } | null) => (resolve ? resolve(r && r.error ? { ...r, error: fail(r.error) } : r) : r), reject);
+      }
+      if (typeof value !== "function") return value;
+      return (...args: unknown[]) => {
+        const out = (value as (...a: unknown[]) => unknown).apply(target, args);
+        return out && typeof out === "object" && typeof (out as { then?: unknown }).then === "function" ? softened(out as object) : out;
+      };
+    },
+  });
+}
+
 const from = (table: string) =>
-  (DUMMY_MODE && DUMMY_TABLES[table] ? dummyBuilder(table) : sb.from(table)) as ReturnType<typeof sb.from>;
+  softened(DUMMY_MODE && DUMMY_TABLES[table] ? dummyBuilder(table) : sb.from(table)) as ReturnType<typeof sb.from>;
 
 // ---------- auth ----------
 /** The shape the screens expect: `session.user.emailVerified` rather than `email_confirmed_at`. */

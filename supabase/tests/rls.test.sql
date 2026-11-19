@@ -394,8 +394,96 @@ insert into entries (workspace_id, type, entry_date, amount, payment_mode, creat
 select t_eq('a workspace with numbering switched off gets no numbers', 'select count(*) from entries where workspace_id = ''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'' and voucher_no is not null', '0');
 select t_eq('  ...and no counters', 'select count(*) from voucher_counters where workspace_id = ''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb''', '0');
 
+-- ================================================================ books and reports
+reset role;
+insert into categories (id, workspace_id, name, kind) values
+  ('c0000000-0000-0000-0000-0000000000a1', :ws, 'Gaushala', 'expense'),
+  ('c0000000-0000-0000-0000-0000000000a2', :ws, 'Purchase of books', 'expense'),
+  ('c0000000-0000-0000-0000-0000000000a3', :ws, 'Construction – Building', 'expense'),
+  ('c0000000-0000-0000-0000-0000000000a4', :ws, 'Annadanam', 'expense'),
+  ('c0000000-0000-0000-0000-0000000000a5', :ws, 'Fixed assets purchased', 'expense');
+select t_eq('a Gaushala head goes to the Goshala book', 'select book from categories where id = ''c0000000-0000-0000-0000-0000000000a1''', 'goshala');
+select t_eq('Purchase of books goes to the Books book', 'select book from categories where id = ''c0000000-0000-0000-0000-0000000000a2''', 'books');
+select t_eq('Construction is capital and has its own section',
+  'select is_capital and section = ''construction'' from categories where id = ''c0000000-0000-0000-0000-0000000000a3''', 'true');
+select t_eq('fixed assets are capital, but not Construction',
+  'select is_capital and section is null from categories where id = ''c0000000-0000-0000-0000-0000000000a5''', 'true');
+select t_eq('everything else is Temple and not capital',
+  'select book = ''temple'' and not is_capital and section is null from categories where id = ''c0000000-0000-0000-0000-0000000000a4''', 'true');
+select t_eq('heads that existed before keep the Temple book', 'select book from categories where id = ''c0000000-0000-0000-0000-000000000001''', 'temple');
+:as_admin
+select t_allow('an admin may move a head to another book', 'update categories set book = ''goshala'' where id = ''c0000000-0000-0000-0000-0000000000a4''');
+select t_eq('  ...and the change sticks', 'select book from categories where id = ''c0000000-0000-0000-0000-0000000000a4''', 'goshala');
+select t_allow('  ...and back', 'update categories set book = ''temple'' where id = ''c0000000-0000-0000-0000-0000000000a4''');
+select t_deny('a head cannot be in a fourth book', 'update categories set book = ''annex'' where id = ''c0000000-0000-0000-0000-0000000000a4''');
+:as_editor
+select t_rows('an editor cannot change a head''s book', 'update categories set book = ''goshala'' where id = ''c0000000-0000-0000-0000-0000000000a4''', 0);
+
+-- Bank accounts
+reset role;
+insert into bank_accounts (id, workspace_id, name) values
+  ('b1000000-0000-0000-0000-000000000001', :ws, 'Ujjivan Small Finance Bank'),
+  ('b1000000-0000-0000-0000-000000000002', :ws2, 'Somebody else''s bank');
+:as_editor
+select t_eq('a member can see their workspace''s bank accounts', 'select count(*) from bank_accounts', '1');
+select t_deny('an editor cannot add a bank account', 'insert into bank_accounts (workspace_id, name) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''IDFC FIRST'')');
+:as_owner
+select t_allow('the owner may add a bank account', 'insert into bank_accounts (workspace_id, name) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''IDFC FIRST'')');
+select t_deny('two bank accounts cannot share a name', 'insert into bank_accounts (workspace_id, name) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''IDFC FIRST'')');
+:as_outsider
+select t_eq('an outsider cannot see our bank accounts', 'select count(*) from bank_accounts where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', '0');
+:as_editor
+select t_allow('a bank voucher can say which bank it went through',
+  t_v('expense', '2031-09-01', 'UPI', 'b-bank', '33333333-3333-3333-3333-333333333333', ', bank_account_id', ', ''b1000000-0000-0000-0000-000000000001'''));
+select t_eq('  ...and it is kept', 'select bank_account_id::text from entries where note = ''b-bank''', 'b1000000-0000-0000-0000-000000000001');
+select t_deny('a voucher cannot use another workspace''s bank account',
+  t_v('expense', '2031-09-02', 'UPI', 'b-bank2', '33333333-3333-3333-3333-333333333333', ', bank_account_id', ', ''b1000000-0000-0000-0000-000000000002'''));
+select t_allow('a cash voucher with a bank account chosen',
+  t_v('expense', '2031-09-03', 'Cash', 'b-cash', '33333333-3333-3333-3333-333333333333', ', bank_account_id', ', ''b1000000-0000-0000-0000-000000000001'''));
+select t_eq('  ...forgets it, since no bank was involved', 'select bank_account_id is null from entries where note = ''b-cash''', 'true');
+
+-- Paying a bill that a journal already booked
+:as_owner
+select t_allow('an unpaid-bill journal for 100',
+  'insert into entries (id, workspace_id, type, entry_date, amount, payment_mode, note, created_by, jv_kind, dr_category_id) values (''e1000000-0000-0000-0000-000000000001'', ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''journal'', ''2031-09-05'', 100, ''Journal'', ''v-jv-unpaid'', ''11111111-1111-1111-1111-111111111111'', ''unpaid_bill'', ''c0000000-0000-0000-0000-000000000001'')');
+-- (t_pay builds an expense of a chosen amount that settles the journal above)
+reset role;
+create or replace function t_pay(p_note text, p_amount numeric, p_by text, p_settles text default 'e1000000-0000-0000-0000-000000000001', p_type text default 'expense') returns text
+language sql as $$
+  select format('insert into entries (workspace_id, type, entry_date, amount, payment_mode, note, created_by, settles_entry_id) values (%L, %L, ''2031-09-10'', %s, ''UPI'', %L, %L, %L)',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', p_type, p_amount, p_note, p_by, p_settles) $$;
+:as_owner
+select t_allow('a payment of 60 against it', t_pay('p-60', 60, '11111111-1111-1111-1111-111111111111'));
+select t_deny('a second payment of 60 would be more than the 100 owed', t_pay('p-60b', 60, '11111111-1111-1111-1111-111111111111'));
+select t_allow('the remaining 40 can be paid', t_pay('p-40', 40, '11111111-1111-1111-1111-111111111111'));
+select t_deny('once it is all paid, nothing more can be settled', t_pay('p-1', 1, '11111111-1111-1111-1111-111111111111'));
+select t_deny('the journal cannot be cut below what has been paid', 'update entries set amount = 50 where id = ''e1000000-0000-0000-0000-000000000001''');
+select t_deny('a journal with payments against it cannot be deleted', 'delete from entries where id = ''e1000000-0000-0000-0000-000000000001''');
+select t_deny('income cannot settle a bill', t_pay('p-inc', 1, '11111111-1111-1111-1111-111111111111', 'e1000000-0000-0000-0000-000000000001', 'income'));
+select t_deny('an ordinary expense is not a bill to settle', t_pay('p-bad', 1, '11111111-1111-1111-1111-111111111111', 'e0000000-0000-0000-0000-000000000001'));
+select t_deny('a payment cannot point at nothing real', t_pay('p-ghost', 1, '11111111-1111-1111-1111-111111111111', 'e1000000-0000-0000-0000-0000000000ff'));
+select t_allow('a payment can be edited down', 'update entries set amount = 30 where note = ''p-40''');
+select t_allow('  ...which frees 10 to pay again', t_pay('p-10', 10, '11111111-1111-1111-1111-111111111111'));
+:as_editor
+select t_deny('an editor cannot settle a bill', t_pay('p-ed', 5, '33333333-3333-3333-3333-333333333333'));
+
+-- Opening balances
+:as_editor
+select t_eq('an editor cannot read opening balances', 'select count(*) from opening_balances', '0');
+select t_deny('an editor cannot set opening balances', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''temple'', ''cash'', 5)');
+:as_owner
+select t_allow('the owner may set an opening balance', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''temple'', ''cash'', 5000)');
+select t_allow('  ...for a bank account', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''temple'', ''bank:b1000000-0000-0000-0000-000000000001'', -250.50)');
+select t_allow('  ...for a head', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''goshala'', ''head:c0000000-0000-0000-0000-0000000000a1'', 120)');
+select t_deny('one balance per account', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''temple'', ''cash'', 1)');
+select t_deny('an account the books do not have', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''temple'', ''petty_cash'', 1)');
+select t_deny('a book that does not exist', 'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''annex'', ''cash'', 1)');
+:as_outsider
+select t_eq('an outsider cannot read our opening balances', 'select count(*) from opening_balances', '0');
+
 -- ================================================================ deleting a workspace
 reset role;
+
 select t_eq('the workspace has history to lose', 'select count(*) > 0 from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');
 :as_owner
 select t_allow('the owner may delete the workspace',

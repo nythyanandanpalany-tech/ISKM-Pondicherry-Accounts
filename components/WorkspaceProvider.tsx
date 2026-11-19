@@ -1,14 +1,14 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { db } from "@/lib/db";
-import type { Category, Item, Member, Person, Role, Workspace } from "@/lib/types";
+import type { BankAccount, Category, Item, Member, Person, Role, Workspace } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
 import { btnPrimary, input } from "./ui";
 
 type Ctx = {
   ws: Workspace; workspaces: Workspace[]; role: Role; member: Member;
   canWrite: boolean; canManage: boolean; canDownload: boolean;
-  categories: Category[]; items: Item[]; people: Person[]; members: Member[];
+  categories: Category[]; items: Item[]; people: Person[]; members: Member[]; banks: BankAccount[];
   switchTo: (id: string) => void; reload: () => Promise<void>; reloadWorkspaces: () => Promise<void>;
   catName: (id: string | null) => string; itemName: (id: string | null) => string; personName: (id: string | null) => string;
   money: (n: number) => string;
@@ -22,7 +22,7 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   const [mine, setMine] = useState<Member[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [data, setData] = useState<{ categories: Category[]; items: Item[]; people: Person[]; members: Member[] }>({ categories: [], items: [], people: [], members: [] });
+  const [data, setData] = useState<{ categories: Category[]; items: Item[]; people: Person[]; members: Member[]; banks: BankAccount[] }>({ categories: [], items: [], people: [], members: [], banks: [] });
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
 
@@ -43,13 +43,14 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
 
   const reload = useCallback(async () => {
     if (!currentId) return;
-    const [c, i, p, m] = await Promise.all([
+    const [c, i, p, m, bk] = await Promise.all([
       db.from("categories").select("*").eq("workspace_id", currentId).order("name"),
       db.from("items").select("*").eq("workspace_id", currentId).order("name"),
       db.from("people").select("*").eq("workspace_id", currentId).order("name"),
       db.from("members").select("*, profiles(full_name,email)").eq("workspace_id", currentId),
+      db.from("bank_accounts").select("*").eq("workspace_id", currentId).order("name"),
     ]);
-    setData({ categories: (c.data as Category[]) ?? [], items: (i.data as Item[]) ?? [], people: (p.data as Person[]) ?? [], members: (m.data as Member[]) ?? [] });
+    setData({ categories: (c.data as Category[]) ?? [], items: (i.data as Item[]) ?? [], people: (p.data as Person[]) ?? [], members: (m.data as Member[]) ?? [], banks: (bk.data as BankAccount[]) ?? [] });
   }, [currentId]);
   useEffect(() => { reload(); }, [reload]);
 

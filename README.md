@@ -92,9 +92,11 @@ from the server.
 - `supabase/migrations/` — the same thing split into ordered files, for the Supabase CLI. `schema.sql` is these concatenated.
   `20260101000005_vouchers.sql` adds the accounting module's numbered vouchers (below). On a project that is already
   running, paste just that file into the SQL Editor — it numbers the entries already made from 1 November 2026.
+  `20260101000006_books.sql` adds what the books need on top of the vouchers: a book per head, bank accounts, the link from a
+  payment to the unpaid bill it clears, and opening balances. Run it after the vouchers one; it changes no existing entry.
 - `supabase/tests/` — the policy tests. `npm run test:rls` applies the schema to a scratch database on any PostgreSQL
   you point it at (`PGHOST`/`PGPORT`/`PGUSER`) and asserts that each role can do exactly what it should and nothing
-  more — 131 checks, including voucher numbering. No Docker or Supabase account needed. See `supabase/tests/README.md`.
+  more — 174 checks, including voucher numbering and the books. No Docker or Supabase account needed. See `supabase/tests/README.md`.
 
 ## Branding & look (ISKM Pondicherry)
 
@@ -167,3 +169,38 @@ financial year (April–March) · type · month of the entry date · serial
   available?" answered No — a bill that is promised but not yet uploaded stays under *Bills missing*).
 - `lib/voucher.ts` mirrors the numbering rules for the entry form's preview; `lib/tests/pure.test.mjs` and
   `supabase/tests/rls.test.sql` pin both to the same examples.
+
+## Books and reports (Accounts)
+
+**Accounts** in the sidebar (owners and admins) is the books: Journal → Ledger → Trial balance, accrual basis, financial
+year April–March, for any date range — week, month, quarter, financial year or custom. Everything is worked out in the
+browser from the numbered vouchers by `lib/accounts.ts`; `lib/sheets.ts` lays each report out once, and the screen, the
+Excel workbook and the PDF all draw from that one layout, so a figure cannot differ between them.
+
+How a voucher posts:
+
+| Voucher | Debit | Credit |
+|---|---|---|
+| CV / BV (expense) | the head | Cash in hand / the bank account chosen |
+| CR / BR (income) | Cash in hand / the bank account | the head |
+| JV, bill not yet paid | the head | Outstanding expenses |
+| JV, move or correct | one head | another head |
+| a payment that *settles* an unpaid bill | Outstanding expenses | Cash / Bank |
+
+That last row is what keeps accrual honest: choosing "this pays a bill already booked as unpaid" on the entry form clears the
+liability instead of charging the expense a second time.
+
+**Three separate books — Temple, Goshala, Books.** A head belongs to exactly one (Accounts → Setup). Gaushala heads default to
+Goshala, Purchase of books to Books, everything else to Temple. A voucher, and the cash or bank leg of it, is kept in the book of
+its head, so every book is self-contained and its trial balance tallies on its own; *All books* is their sum. A journal between
+heads in two books is posted through an inter-book account on each side, which cancels in the combined view. Construction is a
+section inside the Temple book (heads marked *Construction*); capital heads are assets, not expenses. No depreciation and no asset
+register for now, and no month-locking.
+
+Reports: trial balance, ledgers, journal register, cash book, bank book (one per bank account), bank reconciliation, income &
+expenditure, balance sheet, receipts & payments, day book, fund-wise statement, bills-missing list, unpaid-bills list, donations
+without donor name. **Auditor pack** makes all of them, for the chosen book and period, as one Excel workbook and one PDF.
+
+Opening balances (Accounts → Setup) say where each account stood on the day the vouchers begin, including the April–October
+totals of income and expense heads. If they do not tally, the gap shows as its own line instead of unbalancing every report.
+From the second financial year the income and expense heads start afresh and the year's surplus moves into the capital fund.

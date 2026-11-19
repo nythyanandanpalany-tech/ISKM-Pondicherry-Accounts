@@ -2,7 +2,19 @@ export type Role = "owner" | "admin" | "editor" | "viewer";
 export type Profile = { id: string; email: string; full_name: string | null; username: string | null; advanced: boolean };
 export type Workspace = { id: string; name: string; currency: string; date_format: string; org_type: string; monthly_budget: number | null; primary_purchaser: string | null; letterhead: string | null; modules: { store: boolean; chats: boolean }; is_demo: boolean; vouchers_from: string | null };
 export type Member = { workspace_id: string; user_id: string; role: Role; see_all: boolean; can_download: boolean; profiles?: { full_name: string | null; email: string } | null };
-export type Category = { id: string; workspace_id: string; name: string; kind: "expense" | "income"; monthly_limit: number | null };
+export type Book = "temple" | "goshala" | "books";
+export type Category = {
+  id: string; workspace_id: string; name: string; kind: "expense" | "income"; monthly_limit: number | null;
+  /** Which of the three books the head is kept in. */
+  book: Book;
+  /** Capital spending: an asset on the balance sheet, not charged to Income & Expenditure. */
+  is_capital: boolean;
+  /** Construction is reported as its own section inside the Temple book. */
+  section: "construction" | null;
+};
+export type BankAccount = { id: string; workspace_id: string; name: string };
+/** Signed: debit positive, credit negative. `account` is a standing account, or bank:<id> / head:<id>. */
+export type OpeningBalance = { workspace_id: string; book: Book; account: string; amount: number };
 export type Item = { id: string; workspace_id: string; category_id: string; name: string; monthly_limit: number | null };
 export type Person = { id: string; workspace_id: string; name: string };
 export type Entry = {
@@ -18,6 +30,10 @@ export type Entry = {
   no_bill: boolean;
   /** Journal vouchers only: why, and which heads. 'unpaid_bill' credits Outstanding expenses, so has no cr head. */
   jv_kind: JvKind | null; dr_category_id: string | null; cr_category_id: string | null;
+  /** Which bank a bank voucher or receipt went through. */
+  bank_account_id: string | null;
+  /** Set on a payment that clears an unpaid-bill journal, so the bill is not charged to expenses twice. */
+  settles_entry_id: string | null;
   created_by: string; created_at: string; updated_at: string;
 };
 export type VoucherKind = "CV" | "BV" | "CR" | "BR" | "JV";

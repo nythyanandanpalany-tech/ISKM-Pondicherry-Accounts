@@ -35,7 +35,7 @@ export type ReportInput = {
 
 /* ---- The Temple Ledger palette, as literal hex ---------------------------------------
    A PDF has no CSS variables to resolve, and these must match app/globals.css. */
-const C = {
+export const C = {
   ink: "#2a2119", muted: "#7b6a56", soft: "#a2927c", line: "#e9dcc7", panel: "#faf5ec",
   track: "#f3ebdd", gold: "#b8912a", saffron: "#e8913b", brand: "#b85410", brandDark: "#96430b",
   green: "#1f7a46", amber: "#d99100", red: "#a82b25", white: "#ffffff", heading: "#3f3528",
@@ -89,7 +89,7 @@ const PETAL_OUTER: [number, number][] = [[32, 4.5], [41.5, 15], [42, 25], [32, 3
 const PETAL_INNER: [number, number][] = [[32, 14], [38, 21], [38, 27], [32, 32], [26, 27], [26, 21], [32, 14]];
 const ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
-function lotus(doc: jsPDF, cx: number, cy: number, size: number) {
+export function lotus(doc: jsPDF, cx: number, cy: number, size: number) {
   const s = size / 64; // the source mark is drawn in a 64x64 box
   const at = (p: [number, number], deg: number): [number, number] => {
     const r = (deg * Math.PI) / 180, dx = p[0] - 32, dy = p[1] - 32;
@@ -109,9 +109,9 @@ function lotus(doc: jsPDF, cx: number, cy: number, size: number) {
   doc.setFillColor(C.white); doc.circle(cx, cy, 3 * s, "F");
 }
 
-async function blankDoc() {
+export async function blankDoc(orientation: "portrait" | "landscape" = "portrait") {
   const files = await loadFonts();
-  const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
+  const doc = new jsPDF({ unit: "pt", format: "a4", orientation, compress: true });
   FONTS.forEach((f, i) => { doc.addFileToVFS(f.file, files[i]); doc.addFont(f.file, f.family, f.style); });
   doc.setLineHeightFactor(LINE);
   return doc;
@@ -119,7 +119,7 @@ async function blankDoc() {
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 /** Local time, not toISOString(): a report built at 11pm IST must not be stamped tomorrow. */
-function stampNow() {
+export function stampNow() {
   const n = new Date();
   return `${pad2(n.getDate())}/${pad2(n.getMonth() + 1)}/${n.getFullYear()} ${pad2(n.getHours())}:${pad2(n.getMinutes())}`;
 }

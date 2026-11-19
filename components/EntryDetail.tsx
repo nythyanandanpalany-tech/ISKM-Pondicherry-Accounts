@@ -11,14 +11,22 @@ import { JV_KINDS, VOUCHER_KINDS } from "@/lib/voucher";
 
 export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { entry: Entry; onClose: () => void; onEdit: () => void; onChanged: () => void }) {
   const { profile } = useAuth();
-  const { canManage, canWrite, catName, itemName, personName, money } = useWs();
+  const { canManage, canWrite, catName, itemName, personName, money, banks } = useWs();
   const [txn, setTxn] = useState<Txn | null>(null); const [confirming, setConfirming] = useState(false);
+  const [settles, setSettles] = useState<string | null>(null);
+  const [paidOn, setPaidOn] = useState<{ voucher_no: string | null; amount: number }[]>([]);
   const [log, setLog] = useState<{ id: string; action: string; at: string; snapshot: Entry }[]>([]);
   useEffect(() => {
     if (!canManage) return;
     db.from("bank_transactions").select("*").eq("workspace_id", entry.workspace_id).eq("matched_entry_id", entry.id).maybeSingle().then(({ data }) => setTxn(data as Txn | null));
     db.from("entry_log").select("*").eq("workspace_id", entry.workspace_id).eq("entry_id", entry.id).order("at", { ascending: false }).then(({ data }) => setLog(((data as { id: string; action: string; at: string; snapshot: string | Entry }[]) ?? []).map((l) => ({ ...l, snapshot: typeof l.snapshot === "string" ? JSON.parse(l.snapshot) : l.snapshot }))));
   }, [entry.id, entry.workspace_id, canManage]);
+  // The bill this payment clears, or the payments that clear this bill (owners and admins can see both).
+  useEffect(() => {
+    if (!canManage) return;
+    if (entry.settles_entry_id) db.from("entries").select("voucher_no").eq("id", entry.settles_entry_id).maybeSingle().then(({ data }) => setSettles((data as { voucher_no: string | null } | null)?.voucher_no ?? "—"));
+    if (entry.jv_kind === "unpaid_bill") db.from("entries").select("voucher_no, amount").eq("settles_entry_id", entry.id).then(({ data }) => setPaidOn((data as { voucher_no: string | null; amount: number }[]) ?? []));
+  }, [entry.id, entry.settles_entry_id, entry.jv_kind, canManage]);
   const mine = entry.created_by === profile.id && (!entry.claim_status || entry.claim_status === "submitted");
   // A journal voucher is for owners and admins alone, whoever made it.
   const journal = entry.type === "journal";
@@ -43,10 +51,13 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
             {row("Debit", catName(entry.dr_category_id))}
             {row("Credit", entry.jv_kind === "unpaid_bill" ? "Outstanding expenses" : catName(entry.cr_category_id))}
             {row("Narration", entry.note)}
+            {entry.jv_kind === "unpaid_bill" && row("Paid so far", paidOn.length ? `${money(paidOn.reduce((s, p) => s + Number(p.amount), 0))} of ${money(entry.amount)} (${paidOn.map((p) => p.voucher_no).join(", ")})` : "Nothing yet")}
           </> : <>
             {row("Category", catName(entry.category_id))}{row("Item", itemName(entry.item_id))}
             {row(entry.type === "income" ? "Received from" : "Who paid", personName(entry.person_id))}{row("Mode", entry.payment_mode)}
+            {entry.bank_account_id && row("Bank account", banks.find((b) => b.id === entry.bank_account_id)?.name)}
             {row("Reference / UTR", entry.reference_no)}{row("Claim", entry.claim_status)}{row("Note", entry.note)}
+            {entry.settles_entry_id && row("Pays unpaid bill", <span className="font-mono">{settles ?? "…"}</span>)}
             {entry.no_bill && row("Bill", <><span>No bill — self-voucher</span><NoBillTag /></>)}
           </>}
           {canManage && <div className={`mt-3 rounded-lg p-3 text-sm ${txn ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
