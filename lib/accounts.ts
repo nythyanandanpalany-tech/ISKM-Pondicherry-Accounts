@@ -255,10 +255,12 @@ export type IncomeExpenditure = {
 
 export function incomeExpenditure(b: Books, scope: Scope, from: string, to: string): IncomeExpenditure {
   const vf = b.setup.vouchersFrom;
-  const includesOpening = !!vf && from <= fyStart(vf) && to >= vf;
+  const covers = !!vf && from <= fyStart(vf) && to >= vf;
   const sums = new Map<string, number>();
   const add = (k: string, v: number) => sums.set(k, (sums.get(k) ?? 0) + v);
-  if (includesOpening) for (const [k, v] of openingTotal(b, scope)) if (isIE(b.meta(k))) add(k, v);
+  // Only say the April–October figures are included when some were actually entered.
+  let includesOpening = false;
+  if (covers) for (const [k, v] of openingTotal(b, scope)) if (isIE(b.meta(k)) && !zero(v)) { add(k, v); includesOpening = true; }
   const cap = new Map<string, number>();
   for (const p of b.postings) {
     if (!inScope(p.book, scope) || p.entry.entry_date < from || p.entry.entry_date > to) continue;
