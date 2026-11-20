@@ -104,19 +104,23 @@ The temple's identity lives in **one file**, `lib/brand.ts` — name, legal name
 Everything reads from it: the sidebar, the sign-in page, the PWA name (`app/manifest.ts`), printed payment vouchers and
 the daily report letterhead. Handing the app to another centre means editing that file and nothing else.
 
-- **Palette** — `app/globals.css`. Kumkuma saffron for action, a sandalwood-cream canvas, tulsi green for income,
-  marigold for warnings, temple gold for ornament, and "Vrindavan night" in dark mode. It works by re-pointing
-  Tailwind's built-in scales (`indigo`, `slate`, `emerald`, `amber`, `red`, `sky`) at the temple palette, so every
-  existing utility class across the app picks up the look with no per-component changes. Interactive colours clear
-  WCAG AA (white on `indigo-600` = 4.9:1; `gold-ink` rather than `gold` for small text on light).
+- **Palette** — `app/globals.css`, sampled from the logo: the navy of its lettering for action and headings, the pink
+  lotus as the accent, the lotus-leaf green for income, flag saffron for warnings, the gold of the domes for ornament,
+  the logo's ivory for the canvas, and a navy "Vrindavan night" in dark mode. It works by re-pointing Tailwind's
+  built-in scales (`indigo`, `slate`, `emerald`, `amber`, `red`, `sky`) at the temple palette, so every existing
+  utility class across the app picks up the look with no per-component changes. Interactive colours clear WCAG AA
+  (white on `indigo-600` = 10.8:1; `gold-ink` and `lotus-ink` rather than `gold` and `lotus` for small text on light).
 - **Type** — Inter for the interface and every figure (tabular numerals matter in a ledger), Martel for headings and
   the wordmark, Tiro Devanagari Sanskrit for verses. All three are self-hosted by `next/font`; nothing is fetched from
   Google at run time. The report PDF carries its own three subsetted Noto faces in `public/fonts/` — a PDF cannot
   borrow the page's fonts, and the built-in ones have no ₹ and no `ā`/`ṣ`. See `docs/pdf-fonts.md`.
-- **Crest** — an eight-petalled lotus, drawn as vector paths in `components/Brand.tsx`. `public/lotus.svg` and
-  `public/icon.svg` are the same mark; the PNG home-screen icons and `app/favicon.ico` are rendered from
-  `public/icon.svg`. No external imagery is used, so the app looks right offline and as an installed PWA. To redraw
-  the mark, edit the two path constants at the top of `components/Brand.tsx` and re-render the icons from the SVG.
+- **Logo** — `public/logo.jpeg`, the lotus and domes of Pudhuvai Vrindavanam Radha Krishna Temple. It appears in the
+  sidebar, the mobile bar, the sign-in and password pages, printed vouchers, the daily report, and the letterhead of
+  every PDF. The app never loads the full 1563 px original on screen: it uses round cut-outs (`public/logo-64/128/256.png`),
+  a JPEG on white for paper and PDFs (`public/logo-print.jpg`), home-screen icons (`public/icon-192/512.png`,
+  `public/apple-touch-icon.png`) and `app/favicon.ico` (cropped to the lotus, which is what still reads at 16 px). To
+  change the logo, replace `public/logo.jpeg` and re-cut those files from it. The small pink eight-petalled lotus used
+  for dividers and the sign-in watermark is still drawn as vector paths in `components/Brand.tsx`.
 - **Verses** — `lib/verses.ts` holds twelve verses (Devanagari, IAST, plain-English rendering and citation) from the
   Gita, the Bhagavatam, Sri Isopanisad, Bhakti-rasamrta-sindhu and the Siksastaka, chosen for what they say about
   stewardship and seva. One appears on the Dashboard and the sign-in page each day — the same for everyone, rotating

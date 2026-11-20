@@ -5,7 +5,7 @@ import type { Entry } from "@/lib/types";
 import { useWs } from "./WorkspaceProvider";
 import { Modal, btnGhost, btnPrimary } from "./ui";
 import { brand } from "@/lib/brand";
-import { LotusMark } from "./Brand";
+import { PrintLogo } from "./Brand";
 import { VOUCHER_KINDS } from "@/lib/voucher";
 
 function Sheet({ e }: { e: Entry }) {
@@ -14,15 +14,15 @@ function Sheet({ e }: { e: Entry }) {
   return (
     <div className="voucher-page" style={{ border: "2px solid #111", padding: 24, margin: "0 auto 24px", maxWidth: 720, background: "#fff", color: "#111", fontSize: 14 }}>
       <div style={{ textAlign: "center", marginBottom: 14 }}>
-        <div style={{ fontSize: 11, letterSpacing: 3, color: "#b8912a" }} lang="sa">॥ हरे कृष्ण ॥</div>
+        <div style={{ fontSize: 11, letterSpacing: 3, color: "#cda855" }} lang="sa">॥ हरे कृष्ण ॥</div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 6 }}>
-          <LotusMark size={34} print />
+          <PrintLogo size={48} />
           <div style={{ textAlign: "left" }}>
             <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2 }}>{brand.legalName}</div>
             {brand.address && <div style={{ fontSize: 11, color: "#555" }}>{brand.address}</div>}
           </div>
         </div>
-        <div style={{ height: 1, background: "#b8912a", opacity: 0.6, margin: "10px 0 8px" }} />
+        <div style={{ height: 1, background: "#cda855", opacity: 0.6, margin: "10px 0 8px" }} />
         <div style={{ fontSize: 13, color: "#444" }}>{ws.name}</div>
         <div style={{ letterSpacing: 3, fontWeight: 700, marginTop: 2 }}>{e.voucher_type ? VOUCHER_KINDS[e.voucher_type].label.toUpperCase() : "PAYMENT VOUCHER"}</div>
         {e.no_bill && <div style={{ display: "inline-block", marginTop: 4, border: "1px solid #111", padding: "1px 8px", fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>NO BILL</div>}
@@ -34,7 +34,7 @@ function Sheet({ e }: { e: Entry }) {
       <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>No bill/receipt was available for this payment; this voucher records it.</div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 56, fontSize: 12 }}>
         {["Prepared by", "Approved by", "Receiver’s signature"].map((x) => <div key={x} style={{ width: "30%", borderTop: "1px solid #111", paddingTop: 4, textAlign: "center" }}>{x}</div>)}</div>
-      <div style={{ marginTop: 18, textAlign: "center", fontSize: 10, color: "#8a7a5c", letterSpacing: 1 }}>
+      <div style={{ marginTop: 18, textAlign: "center", fontSize: 10, color: "#5d6676", letterSpacing: 1 }}>
         {brand.legalName} · {brand.app} · all glories to Śrīla Prabhupāda
       </div>
     </div>

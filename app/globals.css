@@ -1,11 +1,10 @@
 @import "tailwindcss";
 
 /*
- * ISKM Pondicherry — "Temple Ledger" design system.
- *
- * The palette is drawn from a Gaudiya Vaishnava temple: kumkuma saffron for action,
- * sandalwood cream for the canvas, tulsi green for income, marigold for warnings,
- * temple gold for ornament and peacock blue for quiet accents.
+ * ISKM Pondicherry — design system, drawn from the temple's logo (public/logo.jpeg):
+ * the navy of "PUDHUVAI VRINDAVANAM" for action and headings, the pink lotus as the accent,
+ * the leaf green for income, the gold of the domes for ornament, the saffron of the flags
+ * for warnings, and the logo's ivory for the canvas.
  *
  * As before, we re-point Tailwind's built-in scales (indigo, slate, emerald, amber, red,
  * sky) at the brand palette instead of inventing parallel one-off classes. Every existing
@@ -13,45 +12,45 @@
  * Dark mode works the same way: redeclaring these as CSS variables under `html.dark`
  * re-themes every utility that references them, with no per-component dark: classes needed.
  *
- * Interactive colours are chosen to clear WCAG AA against their background:
- * white on indigo-600 (#b85410) = 4.9:1, slate-500 on white = 5.1:1.
+ * Interactive colours clear WCAG AA against their background:
+ * white on indigo-600 (#1f3c72) = 10.8:1, slate-500 on white = 5.8:1, emerald-600 on white = 6.3:1.
  */
 @theme {
-  /* Kumkuma saffron — the primary action colour (maps onto Tailwind's indigo scale) */
-  --color-indigo-50: #fdf2e4;
-  --color-indigo-200: #f4d2a8;
-  --color-indigo-400: #dd8b35;
-  --color-indigo-500: #cb6a18;
-  --color-indigo-600: #b85410;
-  --color-indigo-700: #96430b;
+  /* Temple navy — the primary action colour, from the logo's lettering (maps onto Tailwind's indigo scale) */
+  --color-indigo-50: #e9eef8;
+  --color-indigo-200: #c3d1ea;
+  --color-indigo-400: #5a78b0;
+  --color-indigo-500: #2c4c86;
+  --color-indigo-600: #1f3c72;
+  --color-indigo-700: #122548;
 
-  /* Sandalwood stone — neutral ink (maps onto Tailwind's slate scale) */
-  --color-slate-50: #faf5ec;
-  --color-slate-100: #f3ebdd;
-  --color-slate-200: #e9dcc7;
-  --color-slate-300: #d9c7a9;
-  --color-slate-400: #a2927c;
-  --color-slate-500: #7b6a56;
-  --color-slate-600: #5d4e3d;
-  --color-slate-700: #3f3528;
-  --color-slate-800: #2a2119;
+  /* Ivory and slate — neutral ink with a breath of the navy (maps onto Tailwind's slate scale) */
+  --color-slate-50: #f6f7f2;
+  --color-slate-100: #eef0ea;
+  --color-slate-200: #e1e4dc;
+  --color-slate-300: #c9cdc4;
+  --color-slate-400: #8a92a0;
+  --color-slate-500: #5d6676;
+  --color-slate-600: #444c5b;
+  --color-slate-700: #2e3543;
+  --color-slate-800: #1b2433;
 
-  /* Tulsi green — income, approvals, healthy budgets */
-  --color-emerald-50: #eaf4ec;
-  --color-emerald-100: #cfe6d5;
-  --color-emerald-200: #a9d2b4;
-  --color-emerald-500: #2f8f57;
-  --color-emerald-600: #1f7a46;
-  --color-emerald-700: #15663a;
-  --color-emerald-800: #0f4f2c;
+  /* Lotus-leaf green — income, approvals, healthy budgets */
+  --color-emerald-50: #edf4e8;
+  --color-emerald-100: #d6e7cc;
+  --color-emerald-200: #b5d3a3;
+  --color-emerald-500: #4d8a3a;
+  --color-emerald-600: #3a6b2b;
+  --color-emerald-700: #2c5520;
+  --color-emerald-800: #1f3f17;
 
-  /* Marigold — pending, warnings, budget nearing its limit */
-  --color-amber-50: #fdf4e0;
-  --color-amber-100: #fae8bd;
-  --color-amber-300: #ecc477;
-  --color-amber-500: #d99100;
-  --color-amber-700: #96620a;
-  --color-amber-800: #7a4f07;
+  /* Flag saffron — pending, warnings, budget nearing its limit */
+  --color-amber-50: #fdf1e6;
+  --color-amber-100: #fbe0c8;
+  --color-amber-300: #f2b07a;
+  --color-amber-500: #e86416;
+  --color-amber-700: #a8460c;
+  --color-amber-800: #873709;
 
   /* Kumkum crimson — destructive actions and overspend */
   --color-red-50: #fcecec;
@@ -61,43 +60,49 @@
   --color-red-600: #a82b25;
   --color-red-700: #8c1f1a;
 
-  /* Peacock blue — quiet informational accents */
-  --color-sky-100: #dcf0f4;
-  --color-sky-700: #0d5c6b;
+  /* Sky — quiet informational accents */
+  --color-sky-100: #e1ecf7;
+  --color-sky-700: #1d4f7a;
 
   /* Named tokens for the shell, cards and ornament */
-  --color-brand: #b85410;
-  --color-brand-hover: #96430b;
-  --color-saffron: #e8913b;
-  --color-gold: #b8912a;
-  --color-gold-soft: #e8d5a3;
-  /* Text-weight gold: 5.1:1 on white, where --color-gold is ornament-only at 3.2:1. */
-  --color-gold-ink: #8a6a12;
+  --color-brand: #1f3c72;
+  --color-brand-hover: #122548;
+  /* The lotus: an accent, never body text on its own (lotus-ink is the text-weight shade). */
+  --color-lotus: #d6657d;
+  --color-lotus-deep: #c74566;
+  --color-lotus-ink: #b8395a;
+  --color-lotus-soft: #f9e3e8;
+  /* Kept under its old name: the lotus mark and the hero mandala draw their petals with it. */
+  --color-saffron: #d6657d;
+  --color-gold: #cda855;
+  --color-gold-soft: #ecdcae;
+  /* Text-weight gold: 5.4:1 on white, where --color-gold is ornament-only. */
+  --color-gold-ink: #876414;
   /* Fixed for the always-dark hero panel — never redeclared under html.dark,
-     because that panel is Vrindavan night in both themes. */
-  --color-cream: #f7ead4;
-  --color-gold-bright: #e0bb5e;
-  --color-peacock: #0d5c6b;
-  --color-night: #1c1333;
-  --color-sidebar: #fffdf9;
-  --color-workspace: #fbf6ee;
+     because that panel is a Vrindavan night sky in both themes. */
+  --color-cream: #f6f3e6;
+  --color-gold-bright: #e3c672;
+  --color-peacock: #1d4f7a;
+  --color-night: #0f1d3a;
+  --color-sidebar: #fdfdf9;
+  --color-workspace: #f7f8f2;
   --color-surface: #ffffff;
-  --color-ink: #2a2119;
-  --color-muted: #7b6a56;
-  --color-line: #e9dcc7;
-  --color-hover: #fdf2e4;
+  --color-ink: #1b2433;
+  --color-muted: #5d6676;
+  --color-line: #e1e4dc;
+  --color-hover: #e9eef8;
 
   /* Typefaces: Martel for headings (harmonises with Devanagari), Inter for UI and
      figures, Tiro Devanagari Sanskrit for verses. */
   --font-display: var(--font-martel), ui-serif, Georgia, serif;
   --font-sanskrit: var(--font-tiro), var(--font-martel), ui-serif, serif;
 
-  /* Radius + shadow scale (shadows warm-tinted to sit on the cream canvas) */
+  /* Radius + shadow scale (shadows tinted with the navy, so they sit quietly on the ivory canvas) */
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-card: 0 2px 12px rgba(74, 48, 20, 0.06);
-  --shadow-hover-card: 0 6px 20px rgba(74, 48, 20, 0.10);
+  --shadow-card: 0 2px 12px rgba(18, 37, 72, 0.06);
+  --shadow-hover-card: 0 6px 20px rgba(18, 37, 72, 0.10);
 }
 
 @layer base {
@@ -121,14 +126,14 @@ body {
   opacity: 0.7;
 }
 
-/* A faint sandalwood wash + gold top edge that marks a panel as devotional
+/* A faint lotus wash + gold top edge that marks a panel as devotional
    (verse of the day, sign-in hero, letterhead) rather than operational. */
 .panel-sacred {
-  background: linear-gradient(180deg, var(--color-indigo-50) 0%, var(--color-surface) 100%);
+  background: linear-gradient(180deg, var(--color-lotus-soft) 0%, var(--color-surface) 100%);
   border-top: 2px solid var(--color-gold);
 }
 html.dark .panel-sacred {
-  background: linear-gradient(180deg, #2a1c12 0%, var(--color-surface) 100%);
+  background: linear-gradient(180deg, #2a1622 0%, var(--color-surface) 100%);
 }
 
 /* Sanskrit set in Tiro Devanagari Sanskrit, with the breathing room the script needs. */
@@ -137,46 +142,48 @@ html.dark .panel-sacred {
   line-height: 1.9;
 }
 
-/* ---- Dark theme: "Vrindavan night" — re-themes via the same CSS variables ---- */
-html.dark body { background: #140f1c; color: #ece3d4; }
+/* ---- Dark theme: "Vrindavan night" — the logo's navy as the sky, re-themed via the same CSS variables ---- */
+html.dark body { background: #0e1424; color: #e6eaf2; }
 html.dark {
-  --color-slate-50: #140f1c;
-  --color-slate-100: #251e30;
-  --color-slate-200: #342b40;
-  --color-slate-300: #3d3349;
-  --color-slate-400: #a08f78;
-  --color-slate-500: #b0a08a;
-  --color-slate-600: #cfc3ae;
-  --color-slate-700: #e4dac8;
-  --color-slate-800: #f0e7d8;
-  --color-indigo-50: #3a2412;
-  --color-indigo-200: #f0c590;
-  --color-indigo-500: #d4761f;
-  --color-indigo-600: #c2621a;
-  --color-indigo-700: #e8974a;
-  --color-amber-50: #3a2a06;
-  --color-amber-100: #3a2a06;
-  --color-amber-700: #f0c56b;
-  --color-amber-800: #f0c56b;
-  --color-emerald-50: #0c2a1a;
-  --color-emerald-100: #0c2a1a;
-  --color-emerald-700: #7fd6a4;
-  --color-emerald-800: #7fd6a4;
+  --color-slate-50: #0e1424;
+  --color-slate-100: #1a2336;
+  --color-slate-200: #263048;
+  --color-slate-300: #323d57;
+  --color-slate-400: #8d97aa;
+  --color-slate-500: #a3adbf;
+  --color-slate-600: #c4ccd9;
+  --color-slate-700: #dce2ec;
+  --color-slate-800: #eef1f6;
+  --color-indigo-50: #16223a;
+  --color-indigo-200: #a9c0ea;
+  --color-indigo-500: #4a72c2;
+  --color-indigo-600: #3f66b3;
+  --color-indigo-700: #a9c2f0;
+  --color-amber-50: #3a2008;
+  --color-amber-100: #3a2008;
+  --color-amber-700: #f5b07a;
+  --color-amber-800: #f5b07a;
+  --color-emerald-50: #13240e;
+  --color-emerald-100: #13240e;
+  --color-emerald-700: #9fd38a;
+  --color-emerald-800: #9fd38a;
   --color-red-100: #3a1210;
   --color-red-200: #5c1d19;
   --color-red-700: #f0a9a3;
-  --color-sky-100: #0b2e35;
-  --color-sky-700: #7fd4e3;
-  --color-gold: #d9b355;
-  --color-gold-soft: #4a3a1c;
-  --color-gold-ink: #d9b355;
-  --color-workspace: #140f1c;
-  --color-surface: #1c1626;
-  --color-sidebar: #1a1422;
-  --color-ink: #ece3d4;
-  --color-muted: #a59782;
-  --color-line: #342b40;
-  --color-hover: #2a1c12;
+  --color-sky-100: #0e2438;
+  --color-sky-700: #8cc4ee;
+  --color-gold: #ddbd66;
+  --color-gold-soft: #4a3f1c;
+  --color-gold-ink: #ddbd66;
+  --color-lotus-ink: #ef9bb0;
+  --color-lotus-soft: #2a1622;
+  --color-workspace: #0e1424;
+  --color-surface: #141c2e;
+  --color-sidebar: #111829;
+  --color-ink: #e6eaf2;
+  --color-muted: #a3adbf;
+  --color-line: #263048;
+  --color-hover: #16223a;
 }
 
 /* ---- Printing vouchers: show only the voucher sheets ---- */

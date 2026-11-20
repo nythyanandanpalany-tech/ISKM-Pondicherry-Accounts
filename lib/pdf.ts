@@ -33,12 +33,12 @@ export type ReportInput = {
   names: Names;
 };
 
-/* ---- The Temple Ledger palette, as literal hex ---------------------------------------
+/* ---- The palette, as literal hex (from the logo) --------------------------------------
    A PDF has no CSS variables to resolve, and these must match app/globals.css. */
 export const C = {
-  ink: "#2a2119", muted: "#7b6a56", soft: "#a2927c", line: "#e9dcc7", panel: "#faf5ec",
-  track: "#f3ebdd", gold: "#b8912a", saffron: "#e8913b", brand: "#b85410", brandDark: "#96430b",
-  green: "#1f7a46", amber: "#d99100", red: "#a82b25", white: "#ffffff", heading: "#3f3528",
+  ink: "#1b2433", muted: "#5d6676", soft: "#8a92a0", line: "#e1e4dc", panel: "#f6f7f2",
+  track: "#eef0ea", gold: "#cda855", saffron: "#d6657d", brand: "#1f3c72", brandDark: "#122548",
+  green: "#3a6b2b", amber: "#e86416", red: "#a82b25", white: "#ffffff", heading: "#122548",
 };
 
 /* ---- Page geometry, in points (A4) ---- */
@@ -68,6 +68,25 @@ function toBase64(buf: ArrayBuffer) {
   // Chunked: spreading 46k arguments into fromCharCode overflows the call stack.
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
+}
+
+let logoFile: Promise<string | null> | null = null;
+/**
+ * The temple's logo for the letterhead (public/logo-print.jpg: the round logo on white). A missing
+ * logo is not worth refusing the whole PDF over, so a failure falls back to the drawn lotus.
+ */
+export function loadLogo() {
+  logoFile ??= fetch("/logo-print.jpg")
+    .then(async (res) => (res.ok ? toBase64(await res.arrayBuffer()) : null))
+    .catch(() => null)
+    .then((v) => { if (v == null) logoFile = null; return v; });
+  return logoFile;
+}
+
+/** Draw the letterhead crest: the logo if it loaded, otherwise the vector lotus. `cx, cy` is its centre. */
+export function crest(doc: jsPDF, logo: string | null, cx: number, cy: number, size: number) {
+  if (logo) doc.addImage(logo, "JPEG", cx - size / 2, cy - size / 2, size, size, "temple-logo", "FAST");
+  else lotus(doc, cx, cy, size);
 }
 
 let fontFiles: Promise<string[]> | null = null;
@@ -124,7 +143,7 @@ export function stampNow() {
   return `${pad2(n.getDate())}/${pad2(n.getMonth() + 1)}/${n.getFullYear()} ${pad2(n.getHours())}:${pad2(n.getMinutes())}`;
 }
 
-function draw(doc: jsPDF, d: ReportInput) {
+function draw(doc: jsPDF, d: ReportInput, logo: string | null) {
   const { money, names } = d;
   const sum = (l: Entry[]) => l.reduce((s, r) => s + r.amount, 0);
   let y = 0;
@@ -148,21 +167,21 @@ function draw(doc: jsPDF, d: ReportInput) {
     doc.text(`॥ ${brand.greeting} ॥`, PAGE_W / 2, t, { align: "center", charSpace: 2 });
 
     t += 22;
-    const crest = 27;
+    const crestSize = 38;
     font("display", "bold", 13, C.ink);
     const nameW = doc.getTextWidth(brand.legalName);
     font("body", "normal", 7.5, C.muted);
     const addrW = brand.address ? doc.getTextWidth(brand.address) : 0;
-    const x = (PAGE_W - (crest + 9 + Math.max(nameW, addrW))) / 2;
-    lotus(doc, x + crest / 2, t + 1, crest);
+    const x = (PAGE_W - (crestSize + 10 + Math.max(nameW, addrW))) / 2;
+    crest(doc, logo, x + crestSize / 2, t + 2, crestSize);
     font("display", "bold", 13, C.ink);
-    doc.text(brand.legalName, x + crest + 9, t - 1);
+    doc.text(brand.legalName, x + crestSize + 10, t - 1);
     if (brand.address) {
       font("body", "normal", 7.5, C.muted);
-      doc.text(brand.address, x + crest + 9, t + 9);
+      doc.text(brand.address, x + crestSize + 10, t + 9);
     }
 
-    t += 22;
+    t += 28;
     rule(t, C.gold, 0.8);
     t += 15;
     font("body", "bold", 9.5, C.muted);
@@ -348,8 +367,8 @@ export const reportFileName = (date: string) => `report-${date}.pdf`;
 
 /** Build the report. Exported on its own so a test can inspect the document. */
 export async function reportPdf(d: ReportInput): Promise<jsPDF> {
-  const doc = await blankDoc();
-  draw(doc, d);
+  const [doc, logo] = await Promise.all([blankDoc(), loadLogo()]);
+  draw(doc, d, logo);
   return doc;
 }
 

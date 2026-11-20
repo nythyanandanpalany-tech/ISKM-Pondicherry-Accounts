@@ -6,7 +6,7 @@ import { input, btnPrimary } from "@/components/ui";
 import { brand } from "@/lib/brand";
 import { today } from "@/lib/format";
 import { verseOfTheDay, type Verse } from "@/lib/verses";
-import { LotusMark, MandalaWatermark, MahaMantra, Wordmark, PrabhupadaPhoto } from "@/components/Brand";
+import { MandalaWatermark, MahaMantra, Wordmark, PrabhupadaPhoto, TempleLogo } from "@/components/Brand";
 import { VerseHero } from "@/components/Verse";
 
 export default function Login() {
@@ -60,7 +60,7 @@ export default function Login() {
       <div className="relative hidden flex-1 flex-col justify-between overflow-hidden bg-night p-10 text-white lg:flex">
         <MandalaWatermark className="pointer-events-none absolute -right-32 -bottom-24 h-[480px] w-[480px] text-saffron opacity-[0.11]" />
         <div className="relative flex items-center gap-3">
-          <LotusMark size={38} />
+          <TempleLogo size={56} className="shadow-lg" />
           <Wordmark tone="light" />
         </div>
         <div className="relative my-6 space-y-6">
@@ -82,7 +82,7 @@ export default function Login() {
         <form onSubmit={submit} className="w-full max-w-sm space-y-3 rounded-lg border border-slate-200 bg-surface p-8 shadow-card">
           <div className="mb-1 flex flex-col items-center gap-2 text-center lg:items-start lg:text-left">
             <div className="flex items-center gap-2 lg:hidden">
-              <LotusMark size={32} />
+              <TempleLogo size={56} />
               <PrabhupadaPhoto size={42} rounded="rounded-lg" />
             </div>
             <h1 className="font-display text-[26px] font-bold text-slate-800">{brand.greeting} 🙏</h1>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db, configured } from "@/lib/db";
 import { input, btnPrimary } from "@/components/ui";
-import { LotusMark } from "@/components/Brand";
+import { TempleLogo } from "@/components/Brand";
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function ResetPassword() {
     <div className="flex min-h-screen items-center justify-center bg-workspace p-4">
       <div className="w-full max-w-sm space-y-3 rounded-lg border border-slate-200 bg-surface p-8 shadow-card">
         <div className="mb-1 flex flex-col items-center gap-2 text-center">
-          <LotusMark size={40} />
+          <TempleLogo size={64} />
           <h1 className="font-display text-[26px] font-bold text-slate-800">Set a new password</h1>
         </div>
         <hr className="rule-gold !my-4" />

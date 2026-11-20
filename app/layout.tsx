@@ -11,12 +11,12 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const martel = Martel({ variable: "--font-martel", subsets: ["latin", "devanagari"], weight: ["400", "700", "800"] });
 const tiro = Tiro_Devanagari_Sanskrit({ variable: "--font-tiro", subsets: ["devanagari", "latin"], weight: "400" });
 
-export const viewport = { themeColor: "#b85410" };
+export const viewport = { themeColor: "#1f3c72" };
 export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   title: { default: `${brand.name} · ${brand.app}`, template: `%s · ${brand.name}` },
   description: `${brand.app} for ${brand.legalName} — seva expenses, donations and bank reconciliation, with a bill and payment proof behind every entry.`,
-  icons: { icon: [{ url: "/lotus.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192" }], apple: "/icon-192.png" },
+  icons: { icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/apple-touch-icon.png" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -8,7 +8,7 @@
 import * as XLSX from "xlsx";
 import type jsPDF from "jspdf";
 import { brand } from "./brand";
-import { blankDoc, C, lotus, stampNow } from "./pdf";
+import { blankDoc, C, crest, loadLogo, stampNow } from "./pdf";
 import type { Cell, Sheet } from "./sheets";
 
 const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -46,7 +46,7 @@ const LEFT = 36, TOP = 36, FOOT = 40;
 const LINE = 1.22;
 
 /** Lay the sheets out, one after another, each starting on a fresh page. */
-export function drawSheets(doc: jsPDF, sheets: Sheet[], workspace: string) {
+export function drawSheets(doc: jsPDF, sheets: Sheet[], workspace: string, logo: string | null = null) {
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
   const RIGHT = W - LEFT, WIDTH = RIGHT - LEFT, BOTTOM = H - FOOT - 14;
   const font = (style: "normal" | "bold", size: number, color: string, family: "body" | "display" = "body") => doc.setFont(family, style).setFontSize(size).setTextColor(color);
@@ -61,11 +61,11 @@ export function drawSheets(doc: jsPDF, sheets: Sheet[], workspace: string) {
 
     // Letterhead: crest, registered name, then what this sheet is.
     let y = TOP + 6;
-    lotus(doc, LEFT + 11, y + 4, 22);
-    font("bold", 12, C.ink, "display"); doc.text(brand.legalName, LEFT + 30, y + 2);
-    font("normal", 7.5, C.muted); doc.text(`${workspace}${brand.address ? ` · ${brand.address}` : ""}`, LEFT + 30, y + 12);
+    crest(doc, logo, LEFT + 15, y + 4, 30);
+    font("bold", 12, C.ink, "display"); doc.text(brand.legalName, LEFT + 38, y + 2);
+    font("normal", 7.5, C.muted); doc.text(`${workspace}${brand.address ? ` · ${brand.address}` : ""}`, LEFT + 38, y + 12);
     font("bold", 8, C.gold); doc.text(`॥ ${brand.greeting} ॥`, RIGHT, y + 2, { align: "right", charSpace: 1 });
-    y += 26; rule(y, C.gold, 0.8); y += 18;
+    y += 28; rule(y, C.gold, 0.8); y += 18;
     font("bold", 13, C.heading, "display"); doc.text(s.title.toUpperCase(), LEFT, y, { charSpace: 1 });
     y += 13; font("normal", 9, C.muted); doc.text(s.subtitle, LEFT, y);
     font("normal", 7.5, C.soft); doc.text("Amounts in ₹", RIGHT, y, { align: "right" });
@@ -126,8 +126,8 @@ export function drawSheets(doc: jsPDF, sheets: Sheet[], workspace: string) {
 }
 
 export async function sheetsPdf(sheets: Sheet[], workspace: string, title: string): Promise<jsPDF> {
-  const doc = await blankDoc("landscape");
-  drawSheets(doc, sheets, workspace);
+  const [doc, logo] = await Promise.all([blankDoc("landscape"), loadLogo()]);
+  drawSheets(doc, sheets, workspace, logo);
   doc.setDocumentProperties({ title: `${brand.name} · ${title}`, subject: `${workspace} — ${title}`, author: brand.legalName, creator: `${brand.name} ${brand.app}` });
   return doc;
 }

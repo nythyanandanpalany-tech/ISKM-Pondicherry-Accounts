@@ -8,8 +8,29 @@ const INNER = "M32 14 C 38 21 38 27 32 32 C 26 27 26 21 32 14 Z";
 const ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
 /**
- * The temple mark: an eight-petalled lotus with a gold whorl and bindu.
- * Reads cleanly from 16px (favicon) to a full-page watermark.
+ * The temple's logo — the lotus and domes of Pudhuvai Vrindavanam (public/logo.jpeg).
+ * Served from pre-cut round PNGs (public/logo-64/128/256.png) so a 36px header badge does not
+ * download the 1563px original; the browser picks the size the screen needs.
+ */
+export function TempleLogo({ size = 40, className = "", ring = true }: { size?: number; className?: string; ring?: boolean }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo-128.png"
+      srcSet="/logo-64.png 64w, /logo-128.png 128w, /logo-256.png 256w"
+      sizes={`${size}px`}
+      width={size}
+      height={size}
+      alt={`${brand.name} logo`}
+      className={`shrink-0 rounded-full bg-white ${ring ? "ring-1 ring-gold-soft" : ""} ${className}`}
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
+/**
+ * The small lotus ornament: an eight-petalled lotus in the logo's pink, with a gold whorl.
+ * Used for dividers and the hero watermark; the logo itself is TempleLogo.
  *
  * `print` swaps the theme variables for literal hex: print previews do not always
  * resolve custom properties, and a voucher that comes out of the printer with an
@@ -17,9 +38,9 @@ const ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
  * these same petals — see lib/pdf.ts.)
  */
 export function LotusMark({ size = 32, className = "", print = false }: { size?: number; className?: string; print?: boolean }) {
-  const outer = print ? "#e8913b" : "var(--color-saffron)";
-  const inner = print ? "#b85410" : "var(--color-brand)";
-  const gold = print ? "#b8912a" : "var(--color-gold)";
+  const outer = print ? "#d6657d" : "var(--color-lotus)";
+  const inner = print ? "#c74566" : "var(--color-lotus-deep)";
+  const gold = print ? "#cda855" : "var(--color-gold)";
   const eye = print ? "#ffffff" : "var(--color-surface)";
   return (
     <svg viewBox="0 0 64 64" width={size} height={size} className={className} role="img" aria-label={`${brand.name} lotus mark`}>
@@ -37,16 +58,19 @@ export function LotusMark({ size = 32, className = "", print = false }: { size?:
   );
 }
 
-/** Lotus mark on a saffron tile — the compact lockup for the sidebar and mobile bar. */
+/**
+ * The logo for paper (printed vouchers, the daily report). A plain JPEG on white with a fixed size:
+ * print previews do not always honour srcset or CSS variables, and a voucher that prints without
+ * its crest is worse than none.
+ */
+export function PrintLogo({ size = 44 }: { size?: number }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logo-print.jpg" width={size} height={size} alt={`${brand.name} logo`} style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0 }} />;
+}
+
+/** The logo, sized for the sidebar and mobile bar. */
 export function LotusBadge({ size = 36 }: { size?: number }) {
-  return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-md bg-indigo-50 ring-1 ring-gold-soft"
-      style={{ width: size, height: size }}
-    >
-      <LotusMark size={size * 0.72} />
-    </span>
-  );
+  return <TempleLogo size={size} />;
 }
 
 /**
