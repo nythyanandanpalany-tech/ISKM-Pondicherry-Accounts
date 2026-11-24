@@ -100,7 +100,8 @@ export default function Accounts() {
 
       {tab === "reports" && (
         <>
-          <div className="grid gap-3 rounded-lg border border-slate-200 bg-surface p-3 shadow-card sm:grid-cols-2 lg:grid-cols-4 print:hidden">
+          {/* The last column holds two dates or a quarter's name, so it gets more room than the three selects. */}
+          <div className="grid gap-3 rounded-lg border border-slate-200 bg-surface p-3 shadow-card sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.6fr] print:hidden">
             <label className="text-xs text-slate-500">Book
               <select aria-label="Book" className={input} value={scope} onChange={(e) => setScope(e.target.value as Scope)}>{SCOPES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
             </label>
@@ -114,7 +115,7 @@ export default function Accounts() {
             </label>
             <div className="text-xs text-slate-500">{period === "custom" ? "Dates" : "Showing"}
               {period === "custom" ? (
-                <div className="flex gap-1"><input type="date" className={input} value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} aria-label="From" /><input type="date" className={input} value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} aria-label="To" /></div>
+                <div className="flex gap-1"><input type="date" className={`${input} min-w-0`} value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} aria-label="From" /><input type="date" className={`${input} min-w-0`} value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} aria-label="To" /></div>
               ) : (
                 <div className="flex items-center gap-1">
                   <button className={`${btnGhost} !px-2.5`} onClick={() => step(-1)} aria-label="Previous period">‹</button>

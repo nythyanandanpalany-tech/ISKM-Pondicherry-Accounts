@@ -159,6 +159,31 @@ test("periods: stepping back and forward, and a period with no vouchers says so"
   await page.getByText("Nothing to show for this period.").waitFor();
 });
 
+test("the filters fit their card: custom dates and a quarter's name, on a desktop and on a phone", async () => {
+  // Everything inside the filter card must end inside it, and the page itself must never scroll sideways.
+  const fits = () => page.evaluate(() => {
+    const card = document.querySelector('select[aria-label="Book"]').closest("div.grid").getBoundingClientRect();
+    const out = [...document.querySelectorAll('div.grid select, div.grid input, div.grid span[title]')]
+      .map((el) => ({ el: el.getAttribute("aria-label") ?? el.getAttribute("title"), r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.right > card.right + 0.5 || r.left < card.left - 0.5).map(({ el }) => el);
+    return { out, pageOverflow: document.documentElement.scrollWidth - window.innerWidth };
+  });
+  for (const width of [1360, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openAccounts();
+    await show("Trial balance");
+    assert.deepEqual(await fits(), { out: [], pageOverflow: 0 }, `custom dates at ${width}px`);
+    await control("Period").selectOption("quarter");
+    const label = page.locator("span[title]").filter({ hasText: /^Q[1-4] / });
+    assert.deepEqual(await fits(), { out: [], pageOverflow: 0 }, `quarter at ${width}px`);
+    if (width >= 1024) assert.ok(await label.evaluate((el) => el.scrollWidth <= el.clientWidth), `the quarter's name is cut off at ${width}px`);
+  }
+  // On a phone the trial balance scrolls inside its card, and an account's name keeps room to be read.
+  const nameWidth = await page.getByRole("region", { name: "Trial Balance" }).getByRole("row").filter({ hasText: "Cash in hand" }).getByRole("cell").first().evaluate((td) => td.getBoundingClientRect().width);
+  assert.ok(nameWidth >= 200, `account names are squeezed into ${nameWidth}px`);
+  await page.setViewportSize({ width: 1360, height: 900 });
+});
+
 test("Setup: moving a head to another book moves its vouchers with it", async () => {
   await openAccounts();
   await page.getByRole("button", { name: "Setup", exact: true }).click();

@@ -14,7 +14,8 @@ export default function SheetTable({ sheet }: { sheet: Sheet }) {
         <p className="text-sm text-slate-500">{sheet.subtitle} <span className="text-slate-400">· amounts in ₹</span></p>
       </header>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+        {/* Wide reports scroll sideways on a phone instead of squeezing the account names into a sliver. */}
+        <table className="w-full text-sm" style={{ minWidth: Math.max(640, sheet.columns.length * 120) }}>
           <colgroup>{sheet.columns.map((c, i) => <col key={i} style={{ width: `${((c.weight ?? 1) / total) * 100}%` }} />)}</colgroup>
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>{sheet.columns.map((c, i) => <th key={i} className={`px-3 py-2 font-semibold ${c.align === "right" ? "text-right" : "text-left"}`}>{c.label}</th>)}</tr>
