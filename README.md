@@ -94,9 +94,10 @@ from the server.
   running, paste just that file into the SQL Editor — it numbers the entries already made from 1 November 2026.
   `20260101000006_books.sql` adds what the books need on top of the vouchers: a book per head, bank accounts, the link from a
   payment to the unpaid bill it clears, and opening balances. Run it after the vouchers one; it changes no existing entry.
+  `20260101000007_week_settlement.sql` adds the weekly settlement (cash counts and settled weeks). Run it after the books one.
 - `supabase/tests/` — the policy tests. `npm run test:rls` applies the schema to a scratch database on any PostgreSQL
   you point it at (`PGHOST`/`PGPORT`/`PGUSER`) and asserts that each role can do exactly what it should and nothing
-  more — 174 checks, including voucher numbering and the books. No Docker or Supabase account needed. See `supabase/tests/README.md`.
+  more — 192 checks, including voucher numbering, the books and the weekly settlement. No Docker or Supabase account needed. See `supabase/tests/README.md`.
 
 ## Branding & look (ISKM Pondicherry)
 
@@ -208,3 +209,20 @@ without donor name. **Auditor pack** makes all of them, for the chosen book and 
 Opening balances (Accounts → Setup) say where each account stood on the day the vouchers begin, including the April–October
 totals of income and expense heads. If they do not tally, the gap shows as its own line instead of unbalancing every report.
 From the second financial year the income and expense heads start afresh and the year's surplus moves into the capital fund.
+
+## Weekly settlement
+
+**Weekly settlement** in the sidebar (owners and admins) lists every calendar week (Monday–Sunday) since the vouchers began. A
+week is *settled* when all four checks pass:
+
+| Check | Passes when |
+|---|---|
+| Bank matched | every bank voucher of the week is matched to a bank-statement row (Reconcile), and no statement row of the week is left without an entry |
+| Cash counted | the cash in hand counted at the end of Sunday (all books together) equals the cash book |
+| Trial balance tallies | every book's trial balance tallies for the week, and so do the opening balances |
+| Bills attached | no expense of the week is "bill promised, not uploaded" (No-bill self-vouchers are allowed, and listed) |
+
+The checks are worked out from the vouchers each time (`lib/settlement.ts`); only the cash count and the settling are stored, in
+`week_settlements`, with who did it stamped by the database. A week can be settled from its Sunday. Settling locks nothing — there
+is no month-locking — so an entry can still be added or corrected; a settled week whose vouchers or cash book then change says
+*Settled — changed since*, and a new cash count reopens it.

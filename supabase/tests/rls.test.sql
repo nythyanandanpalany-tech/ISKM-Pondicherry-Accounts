@@ -484,6 +484,45 @@ select t_eq('an outsider cannot read our opening balances', 'select count(*) fro
 -- ================================================================ deleting a workspace
 reset role;
 
+-- Weekly settlement. Weeks are relative to today (Mondays), so the tests never go stale.
+reset role;
+create or replace function t_wk(p_weeks_ago int) returns text language sql as $$
+  select quote_literal((date_trunc('week', (now() at time zone 'Asia/Kolkata')::date)::date - 7 * p_weeks_ago)::text) $$;
+create or replace function t_ws_ins(p_week text, p_cols text, p_vals text) returns text language sql as $$
+  select format('insert into week_settlements (workspace_id, week_start%s) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', %s%s)', p_cols, p_week, p_vals) $$;
+create or replace function t_ws_set(p_week text, p_set text) returns text language sql as $$
+  select format('update week_settlements set %s where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'' and week_start = %s', p_set, p_week) $$;
+:as_editor
+select t_deny('an editor cannot record a cash count', t_ws_ins(t_wk(2), ', cash_counted', ', 100'));
+:as_owner
+select t_allow('the owner may record last week''s cash count', t_ws_ins(t_wk(2), ', cash_counted, counted_by', ', 1500.50, ''33333333-3333-3333-3333-333333333333'''));
+select t_eq('  ...and it says the owner counted it, whatever the browser sent',
+  'select counted_by::text from week_settlements where week_start = ' || t_wk(2), '11111111-1111-1111-1111-111111111111');
+select t_deny('a week starts on a Monday', t_ws_ins(quote_literal((date_trunc('week', current_date)::date - 12)::text), ', cash_counted', ', 1'));
+select t_deny('a week in the future cannot be counted', t_ws_ins(t_wk(-2), ', cash_counted', ', 1'));
+select t_deny('a week cannot be settled before its cash is counted', t_ws_ins(t_wk(3), ', settled_at', ', now()'));
+select t_allow('this week''s cash may be counted', t_ws_ins(t_wk(0), ', cash_counted', ', 10'));
+-- (On a Sunday this week has ended and may be settled, so there is nothing to refuse that day.)
+select t_deny('  ...but the week cannot be settled before its Sunday',
+  case when extract(isodow from (now() at time zone 'Asia/Kolkata')::date) = 7 then 'select 1/0' else t_ws_set(t_wk(0), 'settled_at = now()') end);
+select t_allow('last week can be settled', t_ws_set(t_wk(2), 'settled_at = now(), settled_by = ''33333333-3333-3333-3333-333333333333'', snapshot = ''{"fingerprint":"x"}'''));
+select t_eq('  ...and it says the owner settled it',
+  'select settled_by::text || '' '' || (snapshot->>''fingerprint'') from week_settlements where week_start = ' || t_wk(2), '11111111-1111-1111-1111-111111111111 x');
+:as_editor
+select t_eq('an editor cannot see the settlements', 'select count(*) from week_settlements', '0');
+select t_rows('an editor cannot undo a settlement', t_ws_set(t_wk(2), 'settled_at = null'), 0);
+:as_outsider
+select t_eq('an outsider cannot see the settlements', 'select count(*) from week_settlements', '0');
+:as_admin
+select t_allow('a new count reopens a settled week', t_ws_set(t_wk(2), 'cash_counted = 1400'));
+select t_eq('  ...it is no longer settled, and the admin is now the counter',
+  'select (settled_at is null and settled_by is null and snapshot is null)::text || '' '' || counted_by::text from week_settlements where week_start = ' || t_wk(2),
+  'true 22222222-2222-2222-2222-222222222222');
+select t_allow('the admin may settle it again', t_ws_set(t_wk(2), 'settled_at = now()'));
+select t_allow('  ...and undo it', t_ws_set(t_wk(2), 'settled_at = null'));
+select t_eq('  ...which clears who settled it, but keeps the count',
+  'select (settled_by is null)::text || '' '' || cash_counted from week_settlements where week_start = ' || t_wk(2), 'true 1400.00');
+
 select t_eq('the workspace has history to lose', 'select count(*) > 0 from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');
 :as_owner
 select t_allow('the owner may delete the workspace',

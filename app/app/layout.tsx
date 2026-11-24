@@ -79,7 +79,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const tabs: [string, string][] = [
     ["/app", "Dashboard"], ...(chatsOn ? [["/app/chats", "Chats"] as [string, string]] : []), ["/app/ledger", "Ledger"], ["/app/analytics", "Analytics"], ["/app/claims", "Claims"],
     ...(storeOn ? [["/app/store", "Store"] as [string, string]] : []), ...(advanced ? [["/app/bills", "All Bills"] as [string, string]] : []),
-    ...(canManage ? [["/app/bank", "Bank Statement"] as [string, string], ["/app/reconcile", "Reconcile"] as [string, string], ["/app/accounts", "Accounts"] as [string, string]] : []),
+    ...(canManage ? [["/app/bank", "Bank Statement"] as [string, string], ["/app/reconcile", "Reconcile"] as [string, string], ["/app/settlement", "Weekly settlement"] as [string, string], ["/app/accounts", "Accounts"] as [string, string]] : []),
   ];
   const [newWs, setNewWs] = useState(false);
   async function createWs(name: string) {
