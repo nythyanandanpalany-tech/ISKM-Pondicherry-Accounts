@@ -148,7 +148,7 @@ test("an editor is not offered Journal, cannot settle a bill, and cannot open th
     await login(ed.page, USERS.editor);
     assert.equal(await ed.page.getByRole("link", { name: "Accounts", exact: true }).count(), 0);
     await ed.page.goto(`${BASE}/app/accounts`);
-    await ed.page.getByText("Only owners and admins can open the books.").waitFor();
+    await ed.page.getByText("Only owners, admins and the main accountant can open the books.").waitFor();
 
     await ed.page.goto(`${BASE}/app/ledger`);
     await ed.page.getByRole("button", { name: "+ Add entry" }).first().click();

@@ -18,7 +18,7 @@ Needs a PostgreSQL you may create databases on (the `ef_e2e` database is dropped
 On macOS the PostgREST release binary looks for Homebrew's `libpq`; if it is not at
 `/opt/homebrew/opt/libpq`, point `DYLD_FALLBACK_LIBRARY_PATH` at a copy (postgresql@18 ships one in
 `lib/postgresql`) and run `node e2e/run.mjs` directly — `npm run` goes through `/bin/sh`, which drops
-`DYLD_*` variables, and PostgREST then never comes up. Test people: `owner@e2e.test`, `admin@e2e.test`, `editor@e2e.test`,
+`DYLD_*` variables, and PostgREST then never comes up. Test people: `owner@e2e.test`, `admin@e2e.test`, `editor@e2e.test`, `accountant@e2e.test`, `super@e2e.test`, `newcomer@e2e.test`,
 password `e2e-Password-1`.
 
 | File | Covers |
@@ -27,4 +27,5 @@ password `e2e-Password-1`.
 | `journal.test.mjs` | Journal vouchers and their validation, paying an unpaid bill in parts, over-payment refused, journal with payments cannot be deleted, editors cannot journal or open the books (screen and database) |
 | `accounts.test.mjs` | Every report against hand-worked figures (`scenario.mjs`), each book separately and together, periods, filters that fit their card on desktop and phone, Setup: heads→books, bank accounts, opening balances |
 | `settlement.test.mjs` | Weekly settlement: every week listed, bank matched once the statement is matched (an unmatched statement row keeps it open), a wrong cash count says by how much, settling records who did it, a later entry marks the week changed, undo, editors kept out |
+| `roles.test.mjs` | Users and roles: a super admin in no workspace sees all users and workspaces, gives roles, full view and super admin (stored and logged); entry users see only their own and cannot edit or delete (screen and database); the main accountant sees everything and journals but cannot edit; owners cannot reach the super admin's screen; the last super admin and a workspace's only owner are protected |
 | `exports.test.mjs` | The Excel and PDF downloads open and agree with the screen; the auditor pack has all 14 reports, for all books or one |

@@ -29,7 +29,7 @@ const okOf = (c: WeekCheck, key: (typeof CHECKS)[number]["key"]) => c[key].ok;
  * lib/settlement.ts; only the cash count and the settling are saved (week_settlements).
  */
 export default function Settlement() {
-  const { ws, canManage, categories, banks, people, members } = useWs();
+  const { ws, canAccount, categories, banks, people, members } = useWs();
   // To the paisa, like the reports: a cash count 50 paise out must not read as "₹1".
   const money = useCallback((n: number) => `${ws.currency}${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, [ws.currency]);
   const [data, setData] = useState<BooksData | null>(null);
@@ -39,14 +39,14 @@ export default function Settlement() {
   const today = indiaToday();
 
   const load = useCallback(async () => {
-    if (!canManage) return;
+    if (!canAccount) return;
     setLoadErr("");
     try {
       const [d, s] = await Promise.all([loadBooksData(ws.id), db.from("week_settlements").select("*").eq("workspace_id", ws.id)]);
       if (s.error) throw new Error(s.error.message);
       setData(d); setSaved((s.data as WeekSettlementRow[]) ?? []);
     } catch (e) { setLoadErr((e as Error).message); }
-  }, [ws.id, canManage]);
+  }, [ws.id, canAccount]);
   useEffect(() => { setData(null); load(); }, [load]);
 
   const names = useMemo(() => ({
@@ -60,7 +60,7 @@ export default function Settlement() {
   const current = checks.find((c) => c.week.from === sel) ?? checks.find((c) => c.ended && !c.settled) ?? checks[0];
   const who = (id: string | null) => members.find((m) => m.user_id === id)?.profiles?.full_name ?? "someone";
 
-  if (!canManage) return <p className="rounded-lg border border-slate-200 bg-surface p-6 text-slate-600 shadow-card">Only owners and admins can settle the weeks.</p>;
+  if (!canAccount) return <p className="rounded-lg border border-slate-200 bg-surface p-6 text-slate-600 shadow-card">Only owners, admins and the main accountant can settle the weeks.</p>;
 
   return (
     <div className="space-y-4">

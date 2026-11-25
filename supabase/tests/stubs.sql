@@ -24,6 +24,7 @@ create table if not exists auth.users (
   email text unique,
   email_confirmed_at timestamptz,          -- null until the confirmation link is clicked
   raw_user_meta_data jsonb default '{}'::jsonb,
+  last_sign_in_at timestamptz,
   created_at timestamptz default now()
 );
 -- PostgREST puts the verified JWT claims into this setting for the duration of the request;

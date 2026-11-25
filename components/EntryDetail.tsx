@@ -3,34 +3,32 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { dmy } from "@/lib/format";
 import type { Entry, Txn } from "@/lib/types";
-import { useAuth } from "./AuthProvider";
 import { useWs } from "./WorkspaceProvider";
 import { Confirm, Modal, Receipt, btnDanger, btnGhost } from "./ui";
 import { NoBillTag } from "./formKit";
 import { JV_KINDS, VOUCHER_KINDS } from "@/lib/voucher";
 
 export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { entry: Entry; onClose: () => void; onEdit: () => void; onChanged: () => void }) {
-  const { profile } = useAuth();
-  const { canManage, canWrite, catName, itemName, personName, money, banks } = useWs();
+  const { canManage, canAccount, catName, itemName, personName, money, banks } = useWs();
   const [txn, setTxn] = useState<Txn | null>(null); const [confirming, setConfirming] = useState(false);
   const [settles, setSettles] = useState<string | null>(null);
   const [paidOn, setPaidOn] = useState<{ voucher_no: string | null; amount: number }[]>([]);
   const [log, setLog] = useState<{ id: string; action: string; at: string; snapshot: Entry }[]>([]);
   useEffect(() => {
-    if (!canManage) return;
+    if (!canAccount) return;
     db.from("bank_transactions").select("*").eq("workspace_id", entry.workspace_id).eq("matched_entry_id", entry.id).maybeSingle().then(({ data }) => setTxn(data as Txn | null));
     db.from("entry_log").select("*").eq("workspace_id", entry.workspace_id).eq("entry_id", entry.id).order("at", { ascending: false }).then(({ data }) => setLog(((data as { id: string; action: string; at: string; snapshot: string | Entry }[]) ?? []).map((l) => ({ ...l, snapshot: typeof l.snapshot === "string" ? JSON.parse(l.snapshot) : l.snapshot }))));
-  }, [entry.id, entry.workspace_id, canManage]);
-  // The bill this payment clears, or the payments that clear this bill (owners and admins can see both).
+  }, [entry.id, entry.workspace_id, canAccount]);
+  // The bill this payment clears, or the payments that clear this bill (whoever keeps the books can see both).
   useEffect(() => {
-    if (!canManage) return;
+    if (!canAccount) return;
     if (entry.settles_entry_id) db.from("entries").select("voucher_no").eq("id", entry.settles_entry_id).maybeSingle().then(({ data }) => setSettles((data as { voucher_no: string | null } | null)?.voucher_no ?? "—"));
     if (entry.jv_kind === "unpaid_bill") db.from("entries").select("voucher_no, amount").eq("settles_entry_id", entry.id).then(({ data }) => setPaidOn((data as { voucher_no: string | null; amount: number }[]) ?? []));
-  }, [entry.id, entry.settles_entry_id, entry.jv_kind, canManage]);
-  const mine = entry.created_by === profile.id && (!entry.claim_status || entry.claim_status === "submitted");
-  // A journal voucher is for owners and admins alone, whoever made it.
+  }, [entry.id, entry.settles_entry_id, entry.jv_kind, canAccount]);
   const journal = entry.type === "journal";
-  const editable = canManage || (canWrite && mine && !journal);
+  // Editing and deleting is for owners, admins and super admins only — entry users and the main accountant add, never
+  // change. The database refuses it either way ("entries update" / "entries delete").
+  const editable = canManage;
 
   async function del() {
     const files = [entry.bill_path, entry.payment_proof_path].filter(Boolean) as string[];
@@ -60,7 +58,7 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
             {entry.settles_entry_id && row("Pays unpaid bill", <span className="font-mono">{settles ?? "…"}</span>)}
             {entry.no_bill && row("Bill", <><span>No bill — self-voucher</span><NoBillTag /></>)}
           </>}
-          {canManage && <div className={`mt-3 rounded-lg p-3 text-sm ${txn ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+          {canAccount && <div className={`mt-3 rounded-lg p-3 text-sm ${txn ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
             {txn ? <>✔ Matched to bank transaction {dmy(txn.txn_date)} · {money(txn.amount)}<div className="text-xs">{txn.description}</div></> : "Not yet matched to a bank transaction."}</div>}
           {log.length > 0 && <div className="mt-3 text-xs text-slate-500"><b>History</b>{log.map((l) => <div key={l.id}>{new Date(l.at).toLocaleString()} · {l.action} (was {money(l.snapshot.amount)}{l.snapshot.note ? `, “${l.snapshot.note}”` : ""})</div>)}</div>}
         </div>
@@ -74,7 +72,7 @@ export default function EntryDetail({ entry, onClose, onEdit, onChanged }: { ent
         <Confirm title={journal ? "Delete this journal voucher" : "Delete this entry"} confirmLabel="Delete" danger onClose={() => setConfirming(false)} onConfirm={del}>
           <p>Delete this {journal ? "journal voucher" : entry.type} of <b>{money(entry.amount)}</b> from {dmy(entry.entry_date)}{journal ? "" : ", along with its bill and payment photos"}?</p>
           {entry.voucher_no && <p className="text-slate-500">Voucher number <span className="font-mono">{entry.voucher_no}</span> will not be reused.</p>}
-          <p className="text-slate-500">Owners and admins can still see that it was deleted, in the entry’s history.</p>
+          <p className="text-slate-500">Owners, admins and the main accountant can still see that it was deleted, in the entry’s history.</p>
         </Confirm>
       )}
     </Modal>

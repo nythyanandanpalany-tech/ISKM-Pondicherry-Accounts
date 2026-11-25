@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { parseDate, num } from "@/lib/format";
 import { readExcel } from "@/lib/export";
 import type { Role } from "@/lib/types";
+import { ASSIGNABLE, ROLES, hasFullViewSwitch, roleLabel } from "@/lib/roles";
+import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { setThemePref, useThemePref, type ThemePref } from "@/components/Theme";
 import { startTour } from "@/components/Tour";
@@ -25,7 +27,7 @@ export default function Settings() {
   const theme = useThemePref();
   const [alerts, setAlerts] = useState(false);
   useEffect(() => { try { setAlerts(localStorage.getItem("ef_alerts") === "1"); } catch { /* ignore */ } }, []);
-  const { ws, role, canManage, categories, items, people, members, reload, reloadWorkspaces, switchTo, workspaces, catName } = useWs();
+  const { ws, role, roleName, superAdmin, canManage, categories, items, people, members, reload, reloadWorkspaces, switchTo, workspaces, catName } = useWs();
   const storageUsed = useStorageUsage(canManage);
   const [acct, setAcct] = useState({ full_name: profile.full_name ?? "", username: profile.username ?? "" });
   const [pw, setPw] = useState(""); const [curPw, setCurPw] = useState(""); const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
@@ -136,7 +138,7 @@ export default function Settings() {
           <button className="text-red-600" onClick={() => setPrompting("delAccount")}>Delete my account</button>
         </div></section>
 
-      {!canManage ? (<section className={card}><p className="text-sm text-slate-500">You are <b>{role}</b> in “{ws.name}”. Only owners and admins can change workspace settings.</p>
+      {!canManage ? (<section className={card}><p className="text-sm text-slate-500">You are <b>{roleName}</b> in “{ws.name}”. Only owners and admins can change workspace settings.</p>
         {role !== "owner" && <button className={btnDanger} onClick={() => setAsk({ title: "Leave this workspace", confirmLabel: "Leave", body: <p>Leave “{ws.name}”? You will lose access to its books until an admin adds you back. Nothing is deleted.</p>, action: leave })}>Leave this workspace</button>}</section>) : (<>
       <section className={card}><h2 className="font-semibold">Workspace</h2>
         <div className="grid gap-2 sm:grid-cols-3">
@@ -160,14 +162,15 @@ export default function Settings() {
       <section className={card}><h2 className="font-semibold">Members &amp; permissions</h2>
         <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); run(db.rpc("add_member", { p_ws: ws.id, p_email: mEmail, p_role: mRole }), "Member added."); setMEmail(""); }}>
           <input className={`${input} !w-64`} type="email" placeholder="Their sign-up email" value={mEmail} onChange={(e) => setMEmail(e.target.value)} required />
-          <select className={`${input} !w-32`} value={mRole} onChange={(e) => setMRole(e.target.value as Role)}>{["admin", "editor", "viewer"].map((r) => <option key={r}>{r}</option>)}</select><button className={btnPrimary}>Add member</button></form>
-        <p className="text-xs text-slate-500">Editors add &amp; edit their own entries; viewers read only. Admins/owners see everything. For editors and viewers choose what they may see and download:</p>
+          <select className={`${input} !w-44`} aria-label="Role for the new member" value={mRole} onChange={(e) => setMRole(e.target.value as Role)}>{ASSIGNABLE.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}</select><button className={btnPrimary}>Add member</button></form>
+        <ul className="space-y-0.5 text-xs text-slate-500">{ASSIGNABLE.map((r) => <li key={r}><b className="text-slate-600">{roleLabel(r)}</b> — {ROLES[r].does}</li>)}</ul>
+        <p className="text-xs text-slate-500">For entry users and viewers, choose whether they get full view of the workspace and may download.{superAdmin && <> All users and every workspace are in <Link className="text-indigo-600" href="/app/admin">Users &amp; permissions</Link>.</>}</p>
         {members.map((m) => (<div key={m.user_id} className="flex flex-wrap items-center gap-3 border-t py-2 text-sm">
           <div className="min-w-48 flex-1">{m.profiles?.full_name}<div className="text-xs text-slate-500">{m.profiles?.email}</div></div>
-          {m.role === "owner" ? <span className="text-xs font-medium text-indigo-700">owner</span> : (<>
-            <select className={`${input} !w-28`} value={m.role} onChange={(e) => run(db.from("members").update({ role: e.target.value }).eq("workspace_id", ws.id).eq("user_id", m.user_id))}>{["admin", "editor", "viewer"].map((r) => <option key={r}>{r}</option>)}</select>
-            {(m.role === "editor" || m.role === "viewer") && (<>
-              <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={m.see_all} onChange={(e) => run(db.from("members").update({ see_all: e.target.checked }).eq("workspace_id", ws.id).eq("user_id", m.user_id))} />See whole workspace</label>
+          {m.role === "owner" ? <span className="text-xs font-medium text-indigo-700">Owner</span> : (<>
+            <select className={`${input} !w-44`} aria-label={`Role of ${m.profiles?.full_name || m.profiles?.email}`} value={m.role} onChange={(e) => run(db.from("members").update({ role: e.target.value }).eq("workspace_id", ws.id).eq("user_id", m.user_id))}>{ASSIGNABLE.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}</select>
+            {hasFullViewSwitch(m.role) && (<>
+              <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={m.see_all} onChange={(e) => run(db.from("members").update({ see_all: e.target.checked }).eq("workspace_id", ws.id).eq("user_id", m.user_id))} />Full view (whole workspace)</label>
               <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={m.can_download} onChange={(e) => run(db.from("members").update({ can_download: e.target.checked }).eq("workspace_id", ws.id).eq("user_id", m.user_id))} />Can download</label></>)}
             <button className={btnDanger} aria-label={`Remove ${m.profiles?.full_name ?? "member"}`} onClick={() => setAsk({ title: "Remove member", confirmLabel: "Remove", body: <p>Remove <b>{m.profiles?.full_name || m.profiles?.email}</b> from “{ws.name}”? Their entries stay in the books.</p>, action: () => run(db.from("members").delete().eq("workspace_id", ws.id).eq("user_id", m.user_id)) })}>×</button></>)}
         </div>))}</section>

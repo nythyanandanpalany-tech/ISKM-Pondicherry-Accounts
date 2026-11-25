@@ -121,7 +121,7 @@ test("an editor has no Weekly settlement in the menu and cannot open it", async 
   await login(e.page, USERS.editor);
   assert.equal(await e.page.getByRole("link", { name: "Weekly settlement" }).count(), 0);
   await e.page.goto(`${BASE}/app/settlement`);
-  await e.page.getByText("Only owners and admins can settle the weeks.").waitFor();
+  await e.page.getByText("Only owners, admins and the main accountant can settle the weeks.").waitFor();
   e.clean(); await e.close();
 });
 

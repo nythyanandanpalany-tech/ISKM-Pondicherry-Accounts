@@ -27,8 +27,8 @@ function NavLinks({ tabs, path, unread, onNavigate }: { tabs: [string, string][]
   );
 }
 
-function SidebarContent({ tabs, path, unread, profile, role, signOut, wsPicker, menu, setMenu, onNavigate }: {
-  tabs: [string, string][]; path: string; unread: number; profile: { full_name: string | null; email: string }; role: string;
+function SidebarContent({ tabs, path, unread, profile, role, superAdmin, signOut, wsPicker, menu, setMenu, onNavigate }: {
+  tabs: [string, string][]; path: string; unread: number; profile: { full_name: string | null; email: string }; role: string; superAdmin: boolean;
   signOut: () => void; wsPicker: React.ReactNode; menu: boolean; setMenu: (v: boolean) => void; onNavigate?: () => void;
 }) {
   return (
@@ -43,6 +43,7 @@ function SidebarContent({ tabs, path, unread, profile, role, signOut, wsPicker, 
       <NavLinks tabs={tabs} path={path} unread={unread} onNavigate={onNavigate} />
       <div className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">More</div>
       <nav className="mb-4 flex flex-col gap-1">
+        {superAdmin && <Link href="/app/admin" onClick={onNavigate} className={`rounded-md px-3 py-2 text-sm font-medium ${path.startsWith("/app/admin") ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`}>Users &amp; permissions</Link>}
         <Link href="/app/settings" onClick={onNavigate} className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700">Settings</Link>
         <Link href="/app/help" onClick={onNavigate} className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700">Help &amp; support</Link>
       </nav>
@@ -58,7 +59,7 @@ function SidebarContent({ tabs, path, unread, profile, role, signOut, wsPicker, 
         </button>
         {menu && (
           <div className="absolute bottom-full left-0 mb-2 w-full rounded-lg border border-slate-200 bg-surface p-1 text-sm shadow-hover-card" onClick={() => setMenu(false)}>
-            <div className="border-b border-slate-200 px-3 py-2 text-xs capitalize text-slate-500">{role}</div>
+            <div className="border-b border-slate-200 px-3 py-2 text-xs text-slate-500" data-testid="my-role">{role}</div>
             <Link className="block rounded-md px-3 py-2 hover:bg-slate-50" href="/app/help?tab=privacy">Privacy</Link>
             <button className="block w-full rounded-md px-3 py-2 text-left text-red-600 hover:bg-slate-50" onClick={signOut}>Sign out</button>
           </div>
@@ -70,7 +71,7 @@ function SidebarContent({ tabs, path, unread, profile, role, signOut, wsPicker, 
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { profile, advanced, signOut } = useAuth();
-  const { ws, workspaces, switchTo, reloadWorkspaces, canManage, role } = useWs();
+  const { ws, workspaces, switchTo, reloadWorkspaces, canAccount, roleName, superAdmin } = useWs();
   const path = usePathname();
   const [menu, setMenu] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
@@ -79,7 +80,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const tabs: [string, string][] = [
     ["/app", "Dashboard"], ...(chatsOn ? [["/app/chats", "Chats"] as [string, string]] : []), ["/app/ledger", "Ledger"], ["/app/analytics", "Analytics"], ["/app/claims", "Claims"],
     ...(storeOn ? [["/app/store", "Store"] as [string, string]] : []), ...(advanced ? [["/app/bills", "All Bills"] as [string, string]] : []),
-    ...(canManage ? [["/app/bank", "Bank Statement"] as [string, string], ["/app/reconcile", "Reconcile"] as [string, string], ["/app/settlement", "Weekly settlement"] as [string, string], ["/app/accounts", "Accounts"] as [string, string]] : []),
+    ...(canAccount ? [["/app/bank", "Bank Statement"] as [string, string], ["/app/reconcile", "Reconcile"] as [string, string], ["/app/settlement", "Weekly settlement"] as [string, string], ["/app/accounts", "Accounts"] as [string, string]] : []),
   ];
   const [newWs, setNewWs] = useState(false);
   async function createWs(name: string) {
@@ -99,14 +100,14 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-workspace text-slate-800">
       {/* Sidebar (desktop) */}
       <aside className="sticky top-0 hidden h-screen w-[250px] shrink-0 flex-col border-r border-slate-200 bg-sidebar px-4 py-6 sm:flex">
-        <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={role} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} />
+        <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={roleName} superAdmin={superAdmin} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} />
       </aside>
 
       {/* Sidebar (mobile overlay) */}
       {mobileNav && (
         <div className="fixed inset-0 z-50 flex sm:hidden" onClick={() => setMobileNav(false)}>
           <div className="flex h-full w-[250px] flex-col border-r border-slate-200 bg-sidebar px-4 py-6" onClick={(e) => e.stopPropagation()}>
-            <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={role} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} onNavigate={() => setMobileNav(false)} />
+            <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={roleName} superAdmin={superAdmin} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} onNavigate={() => setMobileNav(false)} />
           </div>
           <div className="flex-1 bg-slate-800/40" />
         </div>

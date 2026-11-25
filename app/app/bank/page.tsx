@@ -11,7 +11,7 @@ type Row = Record<string, string>;
 const find = (cols: string[], ...keys: string[]) => cols.find((c) => keys.some((k) => c.toLowerCase().includes(k)));
 
 export default function Bank() {
-  const { ws, canManage, money } = useWs();
+  const { ws, canAccount, money } = useWs();
   const [txns, setTxns] = useState<Txn[]>([]); const [msg, setMsg] = useState(""); const [clearing, setClearing] = useState(false);
   const [manual, setManual] = useState({ txn_date: today(), description: "", reference: "", amount: "", direction: "debit" });
   const load = useCallback(async () => {
@@ -19,7 +19,7 @@ export default function Bank() {
     setTxns((data as Txn[]) ?? []);
   }, [ws.id]);
   useEffect(() => { load(); }, [load]);
-  if (!canManage) return <p className="text-sm text-slate-500">Only owners and admins can manage the bank statement.</p>;
+  if (!canAccount) return <p className="text-sm text-slate-500">Only owners, admins and the main accountant can manage the bank statement.</p>;
 
   function importCsv(file: File) {
     Papa.parse<Row>(file, { header: true, skipEmptyLines: true, complete: async (res) => {

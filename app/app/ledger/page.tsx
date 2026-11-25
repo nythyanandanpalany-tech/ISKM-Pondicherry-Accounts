@@ -23,7 +23,7 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 export default function Ledger() {
   const { advanced } = useAuth();
-  const { ws, categories, items, people, canWrite, canManage, canDownload, catName, itemName, personName, money } = useWs();
+  const { ws, categories, items, people, canWrite, canAccount, canDownload, catName, itemName, personName, money } = useWs();
   const [rows, setRows] = useState<Entry[]>([]);
   const [matched, setMatched] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -36,12 +36,12 @@ export default function Ledger() {
   const load = useCallback(async () => {
     const [e, t] = await Promise.all([
       db.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).limit(5000),
-      canManage ? db.from("bank_transactions").select("matched_entry_id").eq("workspace_id", ws.id).not("matched_entry_id", "is", null) : Promise.resolve({ data: [] }),
+      canAccount ? db.from("bank_transactions").select("matched_entry_id").eq("workspace_id", ws.id).not("matched_entry_id", "is", null) : Promise.resolve({ data: [] }),
     ]);
     setRows((e.data as Entry[]) ?? []);
     setMatched(new Set(((t.data as { matched_entry_id: string }[]) ?? []).map((x) => x.matched_entry_id)));
     setLoading(false);
-  }, [ws.id, canManage]);
+  }, [ws.id, canAccount]);
   useEffect(() => { setLoading(true); load(); }, [load]);
 
   const shown = useMemo(() => {
@@ -100,7 +100,7 @@ export default function Ledger() {
           <div><div className="text-xs text-slate-500">Type</div><select className={input} value={fl.type} onChange={fset("type")}><option value="">All</option><option value="expense">Expense</option><option value="income">Income</option><option value="journal">Journal</option></select></div>
           <div><div className="text-xs text-slate-500">Claim status</div><select className={input} value={fl.claim} onChange={fset("claim")}><option value="">All</option><option value="none">Direct (no claim)</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="settled">Settled</option></select></div>
           <div className="sm:col-span-2"><div className="text-xs text-slate-500">Documents</div><select className={input} value={fl.gap} onChange={fset("gap")}>
-            <option value="">All</option><option value="nobill">Bill photo missing</option><option value="selfvoucher">No bill (self-voucher)</option><option value="noproof">Payment screenshot missing (UPI/bank)</option>{canManage && <option value="unmatched">Not matched to bank</option>}</select></div>
+            <option value="">All</option><option value="nobill">Bill photo missing</option><option value="selfvoucher">No bill (self-voucher)</option><option value="noproof">Payment screenshot missing (UPI/bank)</option>{canAccount && <option value="unmatched">Not matched to bank</option>}</select></div>
           {advanced && <div><div className="text-xs text-slate-500">Fund source</div><input className={input} value={fl.fund} onChange={fset("fund")} /></div>}
           {advanced && <div><div className="text-xs text-slate-500">Beneficiary</div><input className={input} value={fl.benef} onChange={fset("benef")} /></div>}
           <button className="text-sm text-indigo-600" onClick={() => setFl({ from: "", to: "", category: "", item: "", person: "", mode: "", type: "", claim: "", gap: "", fund: "", benef: "" })}>Clear</button>
@@ -112,7 +112,7 @@ export default function Ledger() {
       </div>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface shadow-card">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Voucher</th><th>Category / Item</th><th>Member</th><th>Mode</th><th>Status</th><th className="text-right">Amount</th><th className="px-3">Bill</th><th>Payment</th>{canManage && <th>Bank</th>}</tr></thead>
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Date</th><th>Voucher</th><th>Category / Item</th><th>Member</th><th>Mode</th><th>Status</th><th className="text-right">Amount</th><th className="px-3">Bill</th><th>Payment</th>{canAccount && <th>Bank</th>}</tr></thead>
           <tbody>
             {loading && <tr><td colSpan={10} className="p-6 text-center text-slate-400">Loading…</td></tr>}
             {!loading && !shown.length && <tr><td colSpan={10} className="p-6 text-center text-slate-400">No entries for these filters.</td></tr>}
@@ -126,7 +126,7 @@ export default function Ledger() {
                 <td className={`text-right font-medium whitespace-nowrap ${r.type === "income" ? "text-emerald-600" : ""}`}>{r.type === "income" ? "+" : ""}{money(r.amount)}</td>
                 <td className="px-3 text-center"><Mark kind="Bill" state={r.bill_path ? "yes" : r.receipt_available ? "missing" : "none"} /></td>
                 <td className="text-center"><Mark kind="Payment screenshot" state={r.payment_proof_path ? "yes" : ["UPI", "Bank Transfer", "Card"].includes(r.payment_mode) ? "missing" : "none"} /></td>
-                {canManage && <td className="text-center">{matched.has(r.id)
+                {canAccount && <td className="text-center">{matched.has(r.id)
                   ? <span title="Matched to a bank transaction"><span aria-hidden="true">🔗</span><span className="sr-only">Matched to a bank transaction</span></span>
                   : <span title="Not matched to a bank transaction"><span aria-hidden="true">—</span><span className="sr-only">Not matched to a bank transaction</span></span>}</td>}
               </tr>

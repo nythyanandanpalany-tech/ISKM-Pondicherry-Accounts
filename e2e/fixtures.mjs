@@ -7,6 +7,11 @@ export const USERS = {
   owner: { id: "11111111-1111-4111-8111-111111111111", email: "owner@e2e.test", name: "Olivia Owner" },
   admin: { id: "22222222-2222-4222-8222-222222222222", email: "admin@e2e.test", name: "Arun Admin" },
   editor: { id: "33333333-3333-4333-8333-333333333333", email: "editor@e2e.test", name: "Esha Editor" },
+  accountant: { id: "44444444-4444-4444-8444-444444444444", email: "accountant@e2e.test", name: "Anand Accountant" },
+  // A super admin who is not a member of any workspace: everything they see comes from the role alone.
+  superAdmin: { id: "55555555-5555-4555-8555-555555555555", email: "super@e2e.test", name: "Sundar Super" },
+  // Signed up, in no workspace yet: what a new person looks like before the super admin gives them a role.
+  newcomer: { id: "66666666-6666-4666-8666-666666666666", email: "newcomer@e2e.test", name: "Nila Newcomer" },
 };
 
 export const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -34,7 +39,10 @@ insert into workspaces (id, name, created_by) values (${q(WS)}, ${q(WS_NAME)}, $
 insert into members (workspace_id, user_id, role, see_all) values
   (${q(WS)}, ${q(USERS.owner.id)}, 'owner', true),
   (${q(WS)}, ${q(USERS.admin.id)}, 'admin', true),
-  (${q(WS)}, ${q(USERS.editor.id)}, 'editor', false);
+  (${q(WS)}, ${q(USERS.editor.id)}, 'editor', false),
+  (${q(WS)}, ${q(USERS.accountant.id)}, 'accountant', false);
+update profiles set super_admin = true where id = ${q(USERS.superAdmin.id)};
+delete from role_log;
 insert into categories (id, workspace_id, name, kind) values
   (${q(CAT.annadanam)}, ${q(WS)}, 'Annadanam', 'expense'),
   (${q(CAT.festival)}, ${q(WS)}, 'Festival', 'expense'),

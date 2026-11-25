@@ -157,8 +157,12 @@ select t_rows('editor cannot edit another member''s entry',
   'update entries set amount = 999 where id = ''e0000000-0000-0000-0000-000000000001''', 0);
 select t_rows('editor cannot edit their own entry once the claim is approved',
   'update entries set amount = 999 where id = ''e0000000-0000-0000-0000-000000000003''', 0);
-select t_deny('editor cannot approve their own claim',
-  'update entries set claim_status = ''approved'' where id = ''e0000000-0000-0000-0000-000000000002''');
+select t_rows('editor cannot approve their own claim',
+  'update entries set claim_status = ''approved'' where id = ''e0000000-0000-0000-0000-000000000002''', 0);
+select t_rows('an entry user cannot edit even their own entry',
+  'update entries set amount = 1 where id = ''e0000000-0000-0000-0000-000000000002''', 0);
+select t_rows('an entry user cannot delete even their own entry',
+  'delete from entries where id = ''e0000000-0000-0000-0000-000000000002''', 0);
 select t_rows('editor cannot delete another member''s entry',
   'delete from entries where id = ''e0000000-0000-0000-0000-000000000001''', 0);
 :as_owner
@@ -375,8 +379,8 @@ select t_allow('an admin may add a journal voucher',
 :as_editor
 select t_deny('an editor cannot add a journal voucher',
   t_v('journal', '2031-01-27', 'Journal', 'v-jv-editor', '33333333-3333-3333-3333-333333333333', ', jv_kind, dr_category_id, cr_category_id', ', ''transfer'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'''));
-select t_deny('an editor cannot turn their own entry into a journal',
-  'update entries set type = ''journal'', jv_kind = ''correction'', dr_category_id = ''c0000000-0000-0000-0000-000000000001'', cr_category_id = ''c0000000-0000-0000-0000-000000000002'' where note = ''v-br1''');
+select t_rows('an editor cannot turn their own entry into a journal',
+  'update entries set type = ''journal'', jv_kind = ''correction'', dr_category_id = ''c0000000-0000-0000-0000-000000000001'', cr_category_id = ''c0000000-0000-0000-0000-000000000002'' where note = ''v-br1''', 0);
 :as_owner
 select t_allow('the owner may delete a journal voucher', 'delete from entries where note = ''v-jv3''');
 -- The voucher counters are the database's own business.
@@ -522,6 +526,104 @@ select t_allow('the admin may settle it again', t_ws_set(t_wk(2), 'settled_at = 
 select t_allow('  ...and undo it', t_ws_set(t_wk(2), 'settled_at = null'));
 select t_eq('  ...which clears who settled it, but keeps the count',
   'select (settled_by is null)::text || '' '' || cash_counted from week_settlements where week_start = ' || t_wk(2), 'true 1400.00');
+
+-- ================================================================ users and roles (3D)
+-- A main accountant, and a super admin who is not a member of any workspace at all.
+reset role;
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values
+  ('88888888-8888-8888-8888-888888888888', 'accountant@temple.org', now(), '{"full_name":"Accountant"}'),
+  ('99999999-9999-9999-9999-999999999999', 'super@temple.org', now(), '{"full_name":"Super Admin"}');
+insert into members (workspace_id, user_id, role, see_all) values (:ws, '88888888-8888-8888-8888-888888888888', 'accountant', false);
+update profiles set super_admin = true where id = '99999999-9999-9999-9999-999999999999';
+insert into workspaces (id, name, is_demo, created_by) values ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Someone''s sample', true, :outsider);
+insert into members (workspace_id, user_id, role) values ('cccccccc-cccc-cccc-cccc-cccccccccccc', :outsider, 'owner');
+select count(*) as n_users from profiles \gset
+\set as_accountant 'reset role; set request.jwt.claims = ''{"sub":"88888888-8888-8888-8888-888888888888"}''; set role authenticated;'
+\set as_super      'reset role; set request.jwt.claims = ''{"sub":"99999999-9999-9999-9999-999999999999"}''; set role authenticated;'
+
+:as_accountant
+select t_eq('the accountant sees everyone''s entries without the full-view switch',
+  'select count(*) from entries where id in (''e0000000-0000-0000-0000-000000000001'', ''e0000000-0000-0000-0000-000000000002'')', '2');
+select t_allow('the accountant may add an entry', t_v('expense', '2031-12-02', 'Cash', 'acc-cv', '88888888-8888-8888-8888-888888888888'));
+select t_allow('the accountant may add a journal voucher',
+  t_v('journal', '2031-12-03', 'Journal', 'acc-jv', '88888888-8888-8888-8888-888888888888', ', jv_kind, dr_category_id, cr_category_id', ', ''transfer'', ''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'''));
+select t_eq('  ...and it is numbered as a JV', t_no('acc-jv'), '2031-2032/JV/12/V001');
+select t_rows('the accountant cannot edit an entry', 'update entries set amount = 1 where note = ''acc-cv''', 0);
+select t_rows('the accountant cannot delete an entry', 'delete from entries where note = ''acc-cv''', 0);
+select t_eq('the accountant reads the history', 'select count(*) > 0 from entry_log', 'true');
+select t_eq('the accountant reads the bank statement', 'select count(*) > 0 from bank_transactions', 'true');
+select t_allow('the accountant may add a bank row',
+  'insert into bank_transactions (workspace_id, txn_date, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', current_date, 42)');
+select t_allow('the accountant may record a cash count', t_ws_ins(t_wk(6), ', cash_counted', ', 100'));
+select t_deny('the accountant cannot set opening balances',
+  'insert into opening_balances (workspace_id, book, account, amount) values (''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''temple'', ''cash'', 5)');
+select t_rows('the accountant cannot change a head''s book', 'update categories set book = ''goshala'' where id = ''c0000000-0000-0000-0000-000000000001''', 0);
+select t_deny('the accountant cannot add members', 'select add_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''outsider@temple.org'', ''editor'')');
+select t_deny('the accountant cannot list the users', 'select * from admin_list_users()');
+select t_deny('nobody can make themselves a super admin',
+  'update profiles set super_admin = true where id = ''88888888-8888-8888-8888-888888888888''');
+
+:as_owner
+select t_deny('a workspace owner cannot list the users', 'select * from admin_list_users()');
+select t_deny('a workspace owner cannot hand out super admin',
+  'select admin_set_super_admin(''11111111-1111-1111-1111-111111111111'', true)');
+select t_deny('a workspace owner cannot use the super admin''s permissions screen',
+  'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''33333333-3333-3333-3333-333333333333'', ''admin'')');
+select t_eq('a workspace owner cannot read the permissions log', 'select count(*) from role_log', '0');
+select t_allow('a workspace owner may add a main accountant',
+  'select add_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''outsider@temple.org'', ''accountant'')');
+:as_outsider
+select t_eq('  ...who then sees every entry there', 'select count(*) from entries where id = ''e0000000-0000-0000-0000-000000000001''', '1');
+:as_owner
+select t_allow('  ...and the owner may take them off again',
+  'delete from members where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'' and user_id = ''66666666-6666-6666-6666-666666666666''');
+
+:as_super
+select t_eq('the super admin sees every workspace without being a member of any', 'select count(*) from workspaces', '3');
+select t_eq('the super admin sees every entry', 'select count(*) from entries where id in (''e0000000-0000-0000-0000-000000000001'', ''e0000000-0000-0000-0000-000000000002'')', '2');
+select t_eq('the super admin sees every user', 'select count(*) from admin_list_users()', :'n_users');
+select t_eq('  ...with their memberships',
+  'select memberships->0->>''role'' from admin_list_users() where email = ''accountant@temple.org''', 'accountant');
+select t_rows('the super admin may edit any entry', 'update entries set amount = 250 where id = ''e0000000-0000-0000-0000-000000000002''', 1);
+select t_rows('the super admin may delete any entry', 'delete from entries where note = ''acc-cv''', 1);
+select t_eq('the super admin''s storage meter counts every workspace', 'select storage_usage_total()', '503000');
+select t_allow('the super admin may make an entry user a main accountant with full view',
+  'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''44444444-4444-4444-4444-444444444444'', ''accountant'', true, true)');
+select t_eq('  ...which is stored', 'select role || '' '' || see_all || '' '' || can_download from members where user_id = ''44444444-4444-4444-4444-444444444444''', 'accountant true true');
+select t_eq('  ...and logged with who did it',
+  'select by_user::text || '' '' || change from role_log where user_id = ''44444444-4444-4444-4444-444444444444'' order by at desc limit 1',
+  '99999999-9999-9999-9999-999999999999 role editor → accountant, full view on, download on');
+select t_allow('the super admin may switch full view on for an entry user',
+  'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''33333333-3333-3333-3333-333333333333'', ''editor'', true, false)');
+:as_editor
+select t_eq('  ...who then sees the owner''s entry', 'select count(*) from entries where id = ''e0000000-0000-0000-0000-000000000001''', '1');
+select t_rows('  ...but still cannot edit it', 'update entries set amount = 1 where id = ''e0000000-0000-0000-0000-000000000001''', 0);
+:as_super
+select t_allow('  ...and switch it off again',
+  'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''33333333-3333-3333-3333-333333333333'', ''editor'', false, false)');
+:as_editor
+select t_eq('  ...after which they see only their own again', 'select count(*) from entries where id = ''e0000000-0000-0000-0000-000000000001''', '0');
+:as_super
+select t_allow('the super admin may add anyone to any workspace',
+  'select admin_set_member(''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'', ''33333333-3333-3333-3333-333333333333'', ''viewer'')');
+select t_allow('  ...and remove them', 'select admin_remove_member(''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'', ''33333333-3333-3333-3333-333333333333'')');
+select t_deny('a workspace cannot be left without an owner',
+  'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''11111111-1111-1111-1111-111111111111'', ''admin'')');
+select t_deny('  ...nor its only owner removed', 'select admin_remove_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''11111111-1111-1111-1111-111111111111'')');
+select t_deny('the last super admin cannot step down', 'select admin_set_super_admin(''99999999-9999-9999-9999-999999999999'', false)');
+select t_allow('the super admin may give admin access to anyone', 'select admin_set_super_admin(''88888888-8888-8888-8888-888888888888'', true)');
+:as_accountant
+select t_eq('  ...who can then see the users', 'select count(*) from admin_list_users()', :'n_users');
+select t_rows('  ...and edit any entry', 'update entries set amount = 260 where id = ''e0000000-0000-0000-0000-000000000002''', 1);
+:as_super
+select t_allow('  ...and take it back again, now that there are two', 'select admin_set_super_admin(''88888888-8888-8888-8888-888888888888'', false)');
+:as_accountant
+select t_deny('  ...after which the users are hidden again', 'select * from admin_list_users()');
+:as_super
+select t_eq('the permissions log keeps every change', 'select count(*) >= 6 from role_log', 'true');
+select t_allow('removing sample data leaves other people''s samples alone', 'select remove_sample_data()');
+reset role;
+select t_eq('  ...the other sample is still there', 'select count(*) from workspaces where id = ''cccccccc-cccc-cccc-cccc-cccccccccccc''', '1');
 
 select t_eq('the workspace has history to lose', 'select count(*) > 0 from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');
 :as_owner

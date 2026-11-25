@@ -95,9 +95,10 @@ from the server.
   `20260101000006_books.sql` adds what the books need on top of the vouchers: a book per head, bank accounts, the link from a
   payment to the unpaid bill it clears, and opening balances. Run it after the vouchers one; it changes no existing entry.
   `20260101000007_week_settlement.sql` adds the weekly settlement (cash counts and settled weeks). Run it after the books one.
+  `20260101000008_roles.sql` adds users and roles — super admin, main accountant, entry user, full view (below). Run it last.
 - `supabase/tests/` — the policy tests. `npm run test:rls` applies the schema to a scratch database on any PostgreSQL
   you point it at (`PGHOST`/`PGPORT`/`PGUSER`) and asserts that each role can do exactly what it should and nothing
-  more — 192 checks, including voucher numbering, the books and the weekly settlement. No Docker or Supabase account needed. See `supabase/tests/README.md`.
+  more — 244 checks, including voucher numbering, the books, the weekly settlement and users and roles. No Docker or Supabase account needed. See `supabase/tests/README.md`.
 
 ## Branding & look (ISKM Pondicherry)
 
@@ -209,6 +210,29 @@ without donor name. **Auditor pack** makes all of them, for the chosen book and 
 Opening balances (Accounts → Setup) say where each account stood on the day the vouchers begin, including the April–October
 totals of income and expense heads. If they do not tally, the gap shows as its own line instead of unbalancing every report.
 From the second financial year the income and expense heads start afresh and the year's surplus moves into the capital fund.
+
+## Users and roles
+
+| Role | Can do |
+|---|---|
+| **Super admin** | Everything, in every workspace, whether or not they were added to it: edit and delete any entry, see every user, set everyone's role. |
+| Owner / Admin | Everything inside their workspace, including editing and deleting entries. |
+| **Main accountant** | Sees every entry, adds entries and journal vouchers, keeps the books (Accounts reports), bank statement, reconciliation and weekly settlement. Cannot edit or delete an entry, and cannot change Accounts → Setup. |
+| **Entry user** | Adds entries and sees only their own. Cannot edit or delete, not even their own. |
+| Viewer | Reads only. |
+| **Full view** | A switch per member that lets an entry user or viewer see the whole workspace. |
+
+Super admins have **Users & permissions** in the sidebar: the *Users* tab lists every account (from Supabase Auth: confirmed or
+not, joined, last sign-in, and their role in each workspace); the *Permissions* tab sets a user's role in each workspace, full
+view and download, and makes or unmakes super admins. Every change is logged with who made it (`role_log`), and the database
+keeps two guard rails: there is always at least one super admin, and every workspace keeps an owner.
+
+All of it is enforced in Postgres (`supabase/migrations/20260101000008_roles.sql`): `profiles.super_admin` cannot be written
+from the browser, and the `admin_*` functions refuse anyone who is not a super admin.
+
+**The first super admin** is whoever `SUPER_ADMIN_EMAIL` names in `.env`. Apply the roles migration, then run
+`node --env-file=.env scripts/bootstrap-super-admin.mjs`: it sets that account's password to `SUPER_ADMIN_PASSWORD` (creating
+the account, already confirmed, if needed) and marks it super admin. From then on, roles are managed in the app.
 
 ## Weekly settlement
 

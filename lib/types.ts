@@ -1,5 +1,6 @@
-export type Role = "owner" | "admin" | "editor" | "viewer";
-export type Profile = { id: string; email: string; full_name: string | null; username: string | null; advanced: boolean };
+export type Role = "owner" | "admin" | "accountant" | "editor" | "viewer";
+/** `super_admin` is set only by another super admin (admin_set_super_admin); the browser cannot write it. */
+export type Profile = { id: string; email: string; full_name: string | null; username: string | null; advanced: boolean; super_admin: boolean };
 export type Workspace = { id: string; name: string; currency: string; date_format: string; org_type: string; monthly_budget: number | null; primary_purchaser: string | null; letterhead: string | null; modules: { store: boolean; chats: boolean }; is_demo: boolean; vouchers_from: string | null };
 export type Member = { workspace_id: string; user_id: string; role: Role; see_all: boolean; can_download: boolean; profiles?: { full_name: string | null; email: string } | null };
 export type Book = "temple" | "goshala" | "books";

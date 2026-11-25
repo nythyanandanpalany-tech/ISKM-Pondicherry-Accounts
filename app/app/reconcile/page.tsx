@@ -8,7 +8,7 @@ import { useWs } from "@/components/WorkspaceProvider";
 import { Receipt, btnGhost, btnPrimary, input } from "@/components/ui";
 
 export default function Reconcile() {
-  const { ws, canManage, catName, itemName, personName, money } = useWs();
+  const { ws, canAccount, catName, itemName, personName, money } = useWs();
   const [txns, setTxns] = useState<Txn[]>([]); const [entries, setEntries] = useState<Entry[]>([]);
   const [sel, setSel] = useState<string | null>(null); const [tab, setTab] = useState<"open" | "done">("open");
   const [all, setAll] = useState(false); const [search, setSearch] = useState(""); const [busy, setBusy] = useState(false); const [notice, setNote] = useState("");
@@ -38,7 +38,7 @@ export default function Reconcile() {
     return [...ranked, ...rest].slice(0, 30);
   }, [current, free, all, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!canManage) return <p className="text-sm text-slate-500">Only owners and admins can reconcile.</p>;
+  if (!canAccount) return <p className="text-sm text-slate-500">Only owners, admins and the main accountant can reconcile.</p>;
   async function match(t: Txn, e: Entry) { const { error } = await db.from("bank_transactions").update({ matched_entry_id: e.id }).eq("id", t.id); if (error) return alert(error.message); setSel(null); load(); }
   async function unmatch(t: Txn) { await db.from("bank_transactions").update({ matched_entry_id: null }).eq("id", t.id); setSel(null); load(); }
   async function autoMatch() {

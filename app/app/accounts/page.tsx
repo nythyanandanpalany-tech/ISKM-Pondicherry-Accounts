@@ -26,7 +26,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
  * on screen, in the Excel file and in the PDF is one calculation, not three.
  */
 export default function Accounts() {
-  const { ws, canManage, categories, banks, people } = useWs();
+  const { ws, canManage, canAccount, categories, banks, people } = useWs();
   const [tab, setTab] = useState<"reports" | "setup">("reports");
   const [scope, setScope] = useState<Scope>("all");
   const [reportId, setReportId] = useState("trial-balance");
@@ -38,10 +38,10 @@ export default function Accounts() {
   const [busy, setBusy] = useState(""); const [exportErr, setExportErr] = useState("");
 
   const load = useCallback(() => {
-    if (!canManage) return;
+    if (!canAccount) return;
     setLoadErr("");
     loadBooksData(ws.id).then(setData).catch((e: Error) => { setData(null); setLoadErr(e.message); });
-  }, [ws.id, canManage]);
+  }, [ws.id, canAccount]);
   useEffect(() => { setData(null); load(); }, [load]);
 
   const range = useMemo(() => {
@@ -78,7 +78,7 @@ export default function Accounts() {
     await m.downloadPdf(sheets, ws.name, `Auditor pack · ${scopeName} · ${range.label}`, `auditor-pack-${base}.pdf`);
   });
 
-  if (!canManage) return <p className="rounded-lg border border-slate-200 bg-surface p-6 text-slate-600 shadow-card">Only owners and admins can open the books.</p>;
+  if (!canAccount) return <p className="rounded-lg border border-slate-200 bg-surface p-6 text-slate-600 shadow-card">Only owners, admins and the main accountant can open the books.</p>;
 
   const tabBtn = (id: typeof tab, label: string) => (
     <button key={id} onClick={() => setTab(id)} aria-pressed={tab === id}
@@ -93,10 +93,10 @@ export default function Accounts() {
           <h1 className="text-[24px] font-bold text-slate-800">Accounts</h1>
           <p className="text-sm text-slate-500">Journal → Ledger → Trial balance, accrual basis, financial year April–March{ws.vouchers_from ? ` · books start ${dmy(ws.vouchers_from)}` : ""}.</p>
         </div>
-        <div className="flex gap-2">{tabBtn("reports", "Reports")}{tabBtn("setup", "Setup")}</div>
+        <div className="flex gap-2">{tabBtn("reports", "Reports")}{canManage && tabBtn("setup", "Setup")}</div>
       </div>
 
-      {tab === "setup" && <AccountsSetup opening={data?.opening ?? NO_OPENING} onChanged={load} />}
+      {tab === "setup" && canManage && <AccountsSetup opening={data?.opening ?? NO_OPENING} onChanged={load} />}
 
       {tab === "reports" && (
         <>

@@ -71,7 +71,7 @@ function FilePick({ title, note, required, file, existing, onFile, onClear }: {
 
 type Props = { entry?: Entry; onClose: () => void; onSaved: () => void };
 
-/** Expense / income, or — for owners and admins — a journal voucher, which has a form of its own. */
+/** Expense / income, or — for whoever keeps the books — a journal voucher, which has a form of its own. */
 export default function EntryForm(props: Props) {
   const [journal, setJournal] = useState(props.entry?.type === "journal");
   if (journal) return <JournalForm {...props} onBack={props.entry ? undefined : () => setJournal(false)} />;
@@ -80,7 +80,7 @@ export default function EntryForm(props: Props) {
 
 function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJournal: () => void }) {
   const { profile, advanced } = useAuth();
-  const { ws, categories, items, people, banks, reload, catName, money, canManage } = useWs();
+  const { ws, categories, items, people, banks, reload, catName, money, canAccount } = useWs();
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
   const [type, setType] = useState<"expense" | "income">(entry?.type === "income" ? "income" : "expense");
@@ -90,7 +90,7 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
     note: entry?.note ?? "", fund_source: entry?.fund_source ?? "", beneficiary: entry?.beneficiary ?? "", reference_no: entry?.reference_no ?? "", receipt_available: entry?.receipt_available ?? false,
     claim: !!entry?.claim_status, bank_account_id: entry?.bank_account_id ?? "", settles: entry?.settles_entry_id ?? "",
   });
-  // Unpaid-bill journals this payment could clear (owners and admins only; the database enforces that too).
+  // Unpaid-bill journals this payment could clear (owners, admins and the main accountant; the database enforces that too).
   const [bills, setBills] = useState<{ id: string; label: string; left: number; cat: string | null }[]>([]);
   const [newPerson, setNewPerson] = useState("");
   const [proof, setProof] = useState<File | null>(null); const [bill, setBill] = useState<File | null>(null);
@@ -104,7 +104,7 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
   const hasBill = !!bill || (!!entry?.bill_path && !dropBill);
   const needBill = f.receipt_available && !hasBill;
   useEffect(() => {
-    if (!canManage || type !== "expense") return;
+    if (!canAccount || type !== "expense") return;
     let live = true;
     (async () => {
       const [j, p] = await Promise.all([
@@ -122,7 +122,7 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
     })();
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManage, type, ws.id, entry?.id]);
+  }, [canAccount, type, ws.id, entry?.id]);
   const digital = f.payment_mode === "UPI" || f.payment_mode === "Bank Transfer" || f.payment_mode === "Card";
 
   const amt = parseFloat(f.amount);
@@ -188,14 +188,14 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
         {/* Expense or income — the one choice that re-shapes everything below it, so it leads. */}
         <fieldset>
           <legend className="sr-only">Entry type</legend>
-          <div className={`grid grid-cols-2 gap-2 ${canManage && !entry ? "sm:max-w-xl sm:grid-cols-3" : "sm:max-w-md"}`}>
+          <div className={`grid grid-cols-2 gap-2 ${canAccount && !entry ? "sm:max-w-xl sm:grid-cols-3" : "sm:max-w-md"}`}>
             {([["expense", "Expense", <OutflowIcon key="o" className="h-5 w-5" />], ["income", "Income", <InflowIcon key="i" className="h-5 w-5" />]] as const).map(([t, label, icon]) => (
               <Choice key={t} name={id("type")} checked={type === t} onSelect={() => { setType(t); setF({ ...f, category_id: "", item_id: "", claim: false }); }}>
                 {icon}{label}
               </Choice>
             ))}
-            {/* Owners and admins only; a journal moves no cash or bank money, so it has its own form. */}
-            {canManage && !entry && (
+            {/* Owners, admins and the main accountant; a journal moves no cash or bank money, so it has its own form. */}
+            {canAccount && !entry && (
               <Choice name={id("type")} checked={false} onSelect={onJournal}>Journal</Choice>
             )}
           </div>
@@ -299,7 +299,7 @@ function EntryFormBody({ entry, onClose, onSaved, onJournal }: Props & { onJourn
                   </select>
                 </div>
               )}
-              {type === "expense" && canManage && (bills.length > 0 || !!f.settles) && (
+              {type === "expense" && canAccount && (bills.length > 0 || !!f.settles) && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <label htmlFor={id("settles")} className={lbl}>Does this pay a bill that was already booked as unpaid?</label>
                   <select id={id("settles")} className={input} value={f.settles} onChange={(e) => {

@@ -31,15 +31,15 @@ function TodayLine({ workspace }: { workspace: string }) {
 
 export default function Dashboard() {
   const { profile, advanced } = useAuth();
-  const { ws, categories, items, canWrite, canManage, canDownload, catName, itemName, personName, money } = useWs();
+  const { ws, categories, items, canWrite, canManage, canAccount, canDownload, catName, itemName, personName, money } = useWs();
   const storageUsed = useStorageUsage(canManage);
   const [rows, setRows] = useState<Entry[]>([]); const [unmatched, setUnmatched] = useState(0); const [more, setMore] = useState(15);
   const [form, setForm] = useState<{ entry?: Entry } | null>(null); const [detail, setDetail] = useState<Entry | null>(null);
   const load = () => {
     db.from("entries").select("*").eq("workspace_id", ws.id).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(2000).then(({ data }) => setRows((data as Entry[]) ?? []));
-    if (canManage) db.from("bank_transactions").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).is("matched_entry_id", null).then(({ count }) => setUnmatched(count ?? 0));
+    if (canAccount) db.from("bank_transactions").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).is("matched_entry_id", null).then(({ count }) => setUnmatched(count ?? 0));
   };
-  useEffect(load, [ws.id, canManage]);
+  useEffect(load, [ws.id, canAccount]);
 
   const t0 = new Date().toISOString().slice(0, 10); const mo = t0.slice(0, 7);
   const [moY, moM] = mo.split("-").map(Number);
@@ -69,7 +69,7 @@ export default function Dashboard() {
     { label: "Month income", value: money(thisMoInc), icon: <InflowIcon />, trend: incTrend != null ? { pct: incTrend, good: incTrend >= 0 } : undefined },
     { label: "Pending settlement", value: money(sum((e) => e.claim_status === "submitted" || e.claim_status === "approved")), href: "/app/claims", icon: <PendingIcon /> },
     { label: "Bills missing", value: String(rows.filter((e) => e.receipt_available && !e.bill_path).length), href: "/app/ledger", icon: <ReceiptIcon /> },
-    ...(canManage ? [{ label: "Bank rows to match", value: String(unmatched), href: "/app/reconcile", icon: <BankIcon /> } as Card] : []),
+    ...(canAccount ? [{ label: "Bank rows to match", value: String(unmatched), href: "/app/reconcile", icon: <BankIcon /> } as Card] : []),
   ];
 
   return (

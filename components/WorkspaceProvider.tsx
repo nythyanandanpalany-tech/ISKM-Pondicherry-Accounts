@@ -3,11 +3,22 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { db } from "@/lib/db";
 import type { BankAccount, Category, Item, Member, Person, Role, Workspace } from "@/lib/types";
 import { useAuth } from "./AuthProvider";
+import { SUPER_ADMIN, roleLabel } from "@/lib/roles";
 import { btnPrimary, input } from "./ui";
 
 type Ctx = {
   ws: Workspace; workspaces: Workspace[]; role: Role; member: Member;
-  canWrite: boolean; canManage: boolean; canDownload: boolean;
+  /** On screen: "Super admin", or the workspace role's name. */
+  roleName: string;
+  /** Super admin: owner of every workspace, sees all users and sets their roles. */
+  superAdmin: boolean;
+  /** Add entries. */
+  canWrite: boolean;
+  /** Edit and delete entries, members and settings: owners, admins and super admins. */
+  canManage: boolean;
+  /** The books — journals, ledgers, bank, reconciliation, weekly settlement: canManage plus the main accountant. */
+  canAccount: boolean;
+  canDownload: boolean;
   categories: Category[]; items: Item[]; people: Person[]; members: Member[]; banks: BankAccount[];
   switchTo: (id: string) => void; reload: () => Promise<void>; reloadWorkspaces: () => Promise<void>;
   catName: (id: string | null) => string; itemName: (id: string | null) => string; personName: (id: string | null) => string;
@@ -55,7 +66,13 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   useEffect(() => { reload(); }, [reload]);
 
   const ws = workspaces.find((w) => w.id === currentId);
-  const member = mine.find((m) => m.workspace_id === currentId);
+  const superAdmin = !!profile.super_admin;
+  // A super admin sees every workspace whether or not they were added to it, and acts as its owner there
+  // (the database's ws_role() says the same), so they get a stand-in membership where they have none.
+  const own = mine.find((m) => m.workspace_id === currentId);
+  const member: Member | undefined = ws && superAdmin
+    ? { ...(own ?? { workspace_id: ws.id, user_id: profile.id, see_all: true, can_download: true }), role: "owner" }
+    : own;
 
   async function create(e: React.FormEvent) {
     e.preventDefault(); setErr("");
@@ -79,12 +96,14 @@ export default function WorkspaceProvider({ children }: { children: React.ReactN
   );
 
   const manage = member.role === "owner" || member.role === "admin";
+  const account = manage || member.role === "accountant";
   const byId = <T extends { id: string; name: string }>(l: T[], id: string | null) => l.find((x) => x.id === id)?.name ?? "";
   const fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
   return (
     <WsCtx.Provider value={{
-      ws, workspaces, role: member.role, member, canWrite: member.role !== "viewer", canManage: manage,
-      canDownload: manage || member.can_download, ...data,
+      ws, workspaces, role: member.role, member, superAdmin, roleName: superAdmin ? SUPER_ADMIN.label : roleLabel(member.role),
+      canWrite: member.role !== "viewer", canManage: manage, canAccount: account,
+      canDownload: account || member.can_download, ...data,
       switchTo: (id) => { try { localStorage.setItem("ef_ws", id); } catch { /* ignore */ } setCurrentId(id); },
       reload, reloadWorkspaces,
       catName: (id) => byId(data.categories, id), itemName: (id) => byId(data.items, id), personName: (id) => byId(data.people, id),
