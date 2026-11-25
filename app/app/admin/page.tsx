@@ -10,7 +10,7 @@ import { Confirm, btnGhost, input } from "@/components/ui";
 
 type Membership = { workspace_id: string; workspace: string; role: Role; see_all: boolean; can_download: boolean };
 type AppUser = {
-  id: string; email: string; full_name: string | null; super_admin: boolean; confirmed: boolean;
+  id: string; email: string; full_name: string | null; super_admin: boolean; main_super_admin: boolean; confirmed: boolean;
   created_at: string; last_sign_in_at: string | null; memberships: Membership[];
 };
 type LogRow = { id: string; at: string; by_user: string | null; user_id: string | null; workspace_id: string | null; change: string };
@@ -113,7 +113,7 @@ function Admin() {
                     <tr key={u.id} className="border-t border-slate-200 align-top" data-testid={`user-${u.email}`}>
                       <td className="p-3"><div className="font-medium text-slate-800">{u.full_name || "—"}{u.id === profile.id && <span className="ml-1 text-xs text-slate-400">(you)</span>}</div><div className="text-xs text-slate-500">{u.email}</div></td>
                       <td className="py-3">
-                        {u.super_admin && <span className="mb-1 inline-block rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">{SUPER_ADMIN.label}</span>}
+                        {u.super_admin && <span className="mb-1 inline-block rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">{u.main_super_admin ? "Main super admin" : SUPER_ADMIN.label}</span>}
                         {u.memberships.length === 0 && !u.super_admin && <span className="text-xs text-slate-400">No workspace yet</span>}
                         {u.memberships.map((m) => (
                           <div key={m.workspace_id} className="text-xs text-slate-600">{m.workspace} · <b>{roleLabel(m.role)}</b>{hasFullViewSwitch(m.role) && m.see_all ? " · full view" : ""}</div>
@@ -158,10 +158,11 @@ function Admin() {
                     <p className="text-xs text-slate-500">{current.email}</p>
                   </div>
                   <label className="flex items-center gap-2 text-sm font-medium">
-                    <input type="checkbox" checked={current.super_admin} disabled={busy} onChange={() => setAskSuper(current)} />
+                    <input type="checkbox" checked={current.super_admin} disabled={busy || current.main_super_admin} onChange={() => setAskSuper(current)} />
                     {SUPER_ADMIN.label} (full permissions everywhere)
                   </label>
                 </div>
+                {current.main_super_admin && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800" data-testid="main-note">The main super admin always keeps full access. {current.id === profile.id ? "Your account cannot be deleted." : "Other super admins cannot change their access or delete their account."}</p>}
                 {current.super_admin && <p className="rounded-md bg-indigo-50 p-2 text-xs text-indigo-800">As super admin they act as owner of every workspace, whatever is set below. The workspace roles below apply again if super admin is taken away.</p>}
               </section>
 
@@ -174,11 +175,12 @@ function Admin() {
                       {workspaces.map((w) => {
                         const m = current.memberships.find((x) => x.workspace_id === w.id);
                         const sw = m && hasFullViewSwitch(m.role);
+                        const locked = busy || (current.main_super_admin && current.id !== profile.id);
                         return (
                           <tr key={w.id} className="border-t border-slate-200" data-testid={`perm-${w.name}`}>
                             <td className="p-3 font-medium text-slate-700">{w.name}{w.is_demo && <span className="ml-1 text-xs text-slate-400">(sample)</span>}</td>
                             <td className="py-2">
-                              <select className={`${input} !w-48`} aria-label={`Role in ${w.name}`} disabled={busy} value={m?.role ?? ""}
+                              <select className={`${input} !w-48`} aria-label={`Role in ${w.name}`} disabled={locked} value={m?.role ?? ""}
                                 onChange={(e) => {
                                   const r = e.target.value as Role | "";
                                   if (!r) { if (m) removeMember(current, w.id); return; }
@@ -189,10 +191,10 @@ function Admin() {
                               </select>
                             </td>
                             <td className="py-2">{!m ? "—" : sw
-                              ? <label className="flex items-center gap-1 text-xs"><input type="checkbox" aria-label={`Full view in ${w.name}`} disabled={busy} checked={m.see_all} onChange={(e) => setMember(current, w.id, m.role, e.target.checked, m.can_download)} />On</label>
+                              ? <label className="flex items-center gap-1 text-xs"><input type="checkbox" aria-label={`Full view in ${w.name}`} disabled={locked} checked={m.see_all} onChange={(e) => setMember(current, w.id, m.role, e.target.checked, m.can_download)} />On</label>
                               : <span className="text-xs text-slate-400">Always</span>}</td>
                             <td className="py-2">{!m ? "—" : sw
-                              ? <label className="flex items-center gap-1 text-xs"><input type="checkbox" aria-label={`Can download in ${w.name}`} disabled={busy} checked={m.can_download} onChange={(e) => setMember(current, w.id, m.role, m.see_all, e.target.checked)} />On</label>
+                              ? <label className="flex items-center gap-1 text-xs"><input type="checkbox" aria-label={`Can download in ${w.name}`} disabled={locked} checked={m.can_download} onChange={(e) => setMember(current, w.id, m.role, m.see_all, e.target.checked)} />On</label>
                               : <span className="text-xs text-slate-400">Always</span>}</td>
                           </tr>
                         );

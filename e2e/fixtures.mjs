@@ -34,6 +34,7 @@ const q = (s) => `'${String(s).replaceAll("'", "''")}'`;
 export function seedSql() {
   const users = Object.values(USERS).map((u) => `(${q(u.id)}, ${q(u.email)}, now(), ${q(JSON.stringify({ full_name: u.name }))})`).join(",\n  ");
   return `
+update profiles set main_super_admin = false;   -- the main super admin's account cannot be deleted otherwise
 delete from workspaces;
 delete from auth.users;
 insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values
@@ -44,7 +45,7 @@ insert into members (workspace_id, user_id, role, see_all) values
   (${q(WS)}, ${q(USERS.admin.id)}, 'admin', true),
   (${q(WS)}, ${q(USERS.editor.id)}, 'editor', false),
   (${q(WS)}, ${q(USERS.accountant.id)}, 'accountant', false);
-update profiles set super_admin = true where id = ${q(USERS.superAdmin.id)};
+update profiles set super_admin = true, main_super_admin = true where id = ${q(USERS.superAdmin.id)};
 delete from role_log;
 delete from net.http_request_queue;
 delete from net._http_response;
@@ -62,5 +63,7 @@ insert into people (id, workspace_id, name) values
   (${q(PERSON.ramesh)}, ${q(WS)}, 'Ramesh'), (${q(PERSON.sita)}, ${q(WS)}, 'Sita Devi');
 insert into bank_accounts (id, workspace_id, name) values
   (${q(BANK.ujjivan)}, ${q(WS)}, 'Ujjivan'), (${q(BANK.idfc)}, ${q(WS)}, 'IDFC');
+-- The activity log is never wiped in real life; between test files it is, so each file reads only its own actions.
+delete from activity_log;
 `;
 }

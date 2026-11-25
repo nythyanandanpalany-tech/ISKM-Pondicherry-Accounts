@@ -723,6 +723,103 @@ reset role;
 delete from report_deliveries where kind = 'scheduled';
 select t_eq('  ...stops the 3:30 job sending', 'select run_daily_reports()', '0');
 
+-- ================================================================ the main super admin
+reset role;
+update profiles set main_super_admin = true where id = '99999999-9999-9999-9999-999999999999';
+update profiles set super_admin = true where id = '88888888-8888-8888-8888-888888888888';   -- a second super admin
+insert into members (workspace_id, user_id, role) values (:ws, '99999999-9999-9999-9999-999999999999', 'viewer');
+select t_deny('there is only one main super admin', 'update profiles set main_super_admin = true where id = ''11111111-1111-1111-1111-111111111111''');
+:as_accountant
+select t_eq('a second super admin sees every user, and who the main one is',
+  'select main_super_admin from admin_list_users() where id = ''99999999-9999-9999-9999-999999999999''', 'true');
+select t_rows('  ...edits any entry, like the main one', 'update entries set amount = 270 where id = ''e0000000-0000-0000-0000-000000000002''', 1);
+select t_allow('  ...and sets anyone else''s role', 'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''44444444-4444-4444-4444-444444444444'', ''editor'')');
+select t_deny('  ...but cannot take super admin from the main one', 'select admin_set_super_admin(''99999999-9999-9999-9999-999999999999'', false)');
+select t_deny('  ...nor change the main one''s role in a workspace', 'select admin_set_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''99999999-9999-9999-9999-999999999999'', ''editor'')');
+select t_deny('  ...nor remove the main one from a workspace', 'select admin_remove_member(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''99999999-9999-9999-9999-999999999999'')');
+:as_owner
+select t_rows('a workspace owner cannot remove the main super admin', 'delete from members where user_id = ''99999999-9999-9999-9999-999999999999''', 0);
+select t_rows('  ...nor change their role', 'update members set role = ''editor'' where user_id = ''99999999-9999-9999-9999-999999999999''', 0);
+:as_super
+select t_deny('the main super admin cannot step down either', 'select admin_set_super_admin(''99999999-9999-9999-9999-999999999999'', false)');
+select t_deny('the main super admin''s account cannot be deleted', 'select delete_account()');
+select t_allow('the main super admin may take super admin from the second', 'select admin_set_super_admin(''88888888-8888-8888-8888-888888888888'', false)');
+reset role;
+select t_deny('not even straight in the database', 'delete from auth.users where id = ''99999999-9999-9999-9999-999999999999''');
+
+-- ================================================================ activity log
+:as_editor
+select t_allow('an entry user adds an entry', t_v('expense', '2031-06-02', 'Cash', 'log-me', '33333333-3333-3333-3333-333333333333'));
+:as_owner
+select t_rows('the owner changes its amount', 'update entries set amount = 25 where note = ''log-me''', 1);
+:as_super
+select t_eq('the log says who added it, in words',
+  'select actor::text || '' | '' || area || '' | '' || summary from activity_log where summary like ''Added Expense % · ₹10'' order by id desc limit 1',
+  '33333333-3333-3333-3333-333333333333 | Entries | Added Expense ' || (select voucher_no from entries where note = 'log-me') || ' · ₹10');
+select t_eq('  ...and who changed what, old and new',
+  'select actor::text || '' | '' || summary || '' | '' || (details->''amount'')::text from activity_log where summary like ''Changed Expense % · ₹25 — amount'' order by id desc limit 1',
+  '11111111-1111-1111-1111-111111111111 | Changed Expense ' || (select voucher_no from entries where note = 'log-me') || ' · ₹25 — amount | [10.00, 25.00]');
+select t_eq('role changes are logged', 'select count(*) > 0 from activity_log where area = ''Members & roles'' and summary like ''%role editor → accountant%''', 'true');
+select t_eq('making someone super admin is logged', 'select count(*) > 0 from activity_log where summary = ''Made Accountant a super admin''', 'true');
+select t_eq('saving the bot token is logged, without the token', 'select count(*) from activity_log where summary = ''Saved a new Telegram bot token''', '1');
+select t_eq('  ...the token appears nowhere in the log', 'select count(*) from activity_log where summary || coalesce(details::text, '''') like ''%AAEabcdef%''', '0');
+reset role;
+update auth.users set last_sign_in_at = now() where id = '33333333-3333-3333-3333-333333333333';
+:as_super
+select t_eq('signing in is logged', 'select actor::text || '' '' || summary from activity_log where area = ''Sign-in'' order by id desc limit 1', '33333333-3333-3333-3333-333333333333 Signed in');
+select t_eq('the super admin reads every workspace''s log', 'select count(distinct workspace_id) >= 2 from activity_log', 'true');
+:as_owner
+select t_eq('an owner reads their workspace''s log', 'select count(*) > 0 from activity_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');
+select t_eq('  ...but not another workspace''s', 'select count(*) from activity_log where workspace_id = ''bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb''', '0');
+select t_eq('  ...nor sign-ins and super admin changes', 'select count(*) from activity_log where workspace_id is null', '0');
+select t_deny('nobody can write the log', 'insert into activity_log (area, action, summary) values (''x'', ''added'', ''forged'')');
+:as_super
+select t_rows('  ...nor delete from it, not even a super admin', 'delete from activity_log', 0);
+select t_rows('  ...nor rewrite it', 'update activity_log set summary = ''x''', 0);
+:as_editor
+select t_eq('an entry user cannot read the log', 'select count(*) from activity_log', '0');
+
+-- ================================================================ chart of accounts (H)
+:as_owner
+select t_eq('the chart has the 26 lines of the FY2025-26 accounts', 'select count(*) from chart_status(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')', '26');
+select t_eq('  ...and says which are already here',
+  'select string_agg(name || ''='' || present, '', '' order by ord) from chart_status(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'') where name in (''Gaushala'', ''Donations – received in bank'', ''Bank – Ujjivan Small Finance Bank'', ''Bank – Canara'')',
+  'Donations – received in bank=false, Gaushala=true, Bank – Ujjivan Small Finance Bank=true');
+select count(*) filter (where not present) as n_missing from chart_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') \gset
+select t_eq('  ...unapproved', 'select count(*) from chart_status(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'') where approved_at is not null', '0');
+select t_deny('only a super admin can approve it', 'select approve_chart_of_accounts(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')');
+:as_accountant
+select t_deny('the accountant cannot see it', 'select * from chart_status(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')');
+:as_super
+select t_eq('approving adds exactly the lines that were missing', 'select approve_chart_of_accounts(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')', :'n_missing');
+select t_eq('  ...approving again adds nothing', 'select approve_chart_of_accounts(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')', '0');
+select t_eq('  ...every line is now present, and it says who approved it',
+  'select bool_and(present)::text || '' '' || max(approved_by) from chart_status(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')', 'true Super Admin');
+select t_eq('  ...each head in its book, capital kept apart',
+  'select string_agg(name || '':'' || book || case when is_capital then '':capital'' else '''' end, '', '' order by name) from categories where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'' and name in (''Gaushala'', ''Purchase of books'', ''Construction – Building'', ''Fixed assets purchased'', ''Sale of books'', ''Bank charges'')',
+  'Bank charges:temple, Construction – Building:temple:capital, Fixed assets purchased:temple:capital, Gaushala:goshala, Purchase of books:books, Sale of books:temple');
+select t_eq('  ...logged', 'select count(*) from activity_log where summary = ''Approved the chart of accounts''', '1');
+select t_eq('heads outside the chart are listed with their vouchers',
+  'select (entries > 0)::text from chart_other_heads(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'') where name = ''Test Cat''', 'true');
+select t_deny('a head cannot be merged into one of the other kind',
+  'select merge_head(''c0000000-0000-0000-0000-0000000000d1'', (select id from categories where name = ''Miscellaneous'' and workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''))');
+select t_deny('nor into the head a journal moves money to or from',
+  'select merge_head(''c0000000-0000-0000-0000-000000000001'', ''c0000000-0000-0000-0000-000000000002'')');
+:as_owner
+select t_deny('only a super admin merges heads', 'select merge_head(''c0000000-0000-0000-0000-000000000001'', (select id from categories where name = ''Miscellaneous''))');
+reset role;
+create temp table t_merge as select id, voucher_no from entries where 'c0000000-0000-0000-0000-000000000001' in (category_id, dr_category_id, cr_category_id);
+grant select on t_merge to authenticated;
+select count(*) as n_merge from t_merge \gset
+:as_super
+select t_eq('merging Test Cat into Miscellaneous moves all its vouchers',
+  'select merge_head(''c0000000-0000-0000-0000-000000000001'', (select id from categories where name = ''Miscellaneous'' and workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''))', :'n_merge');
+reset role;
+select t_eq('  ...the old head is gone', 'select count(*) from categories where id = ''c0000000-0000-0000-0000-000000000001''', '0');
+select t_eq('  ...every voucher kept its number and now sits under Miscellaneous',
+  'select count(*) from t_merge m join entries e using (id) where e.voucher_no is not distinct from m.voucher_no and (select name from categories where id in (e.category_id, e.dr_category_id) limit 1) = ''Miscellaneous''', :'n_merge');
+select t_eq('  ...and the merge is logged', 'select count(*) from activity_log where summary like ''Merged head Test Cat into Miscellaneous (%''', '1');
+
 select t_eq('the workspace has history to lose', 'select count(*) > 0 from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');
 :as_owner
 select t_allow('the owner may delete the workspace',
@@ -734,6 +831,10 @@ select t_eq('deleting a workspace takes its history with it',
   'select count(*) from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', '0');
 select t_eq('deleting a workspace takes its members with it',
   'select count(*) from members where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', '0');
+select t_eq('the log keeps one line for deleting the workspace',
+  'select count(*) from activity_log where summary = ''Deleted workspace Test Temple''', '1');
+select t_eq('  ...not a line for every row that went with it',
+  'select count(*) from activity_log where area = ''Entries'' and action = ''deleted'' and at >= (select max(at) from activity_log where summary = ''Deleted workspace Test Temple'')', '0');
 
 -- ---------------------------------------------------------------- report
 reset role;

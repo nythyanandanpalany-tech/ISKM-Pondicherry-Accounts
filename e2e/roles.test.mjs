@@ -61,7 +61,7 @@ test("the Users tab lists every account from the database, with each one's acces
   const total = Number(sql("select count(*) from profiles"));
   await page.getByRole("heading", { name: new RegExp(`All users \\(${total}\\)`) }).waitFor();
   for (const u of Object.values(USERS)) await page.getByTestId(`user-${u.email}`).waitFor();
-  assert.match(await page.getByTestId(`user-${USERS.superAdmin.email}`).textContent(), /Super admin/);
+  assert.match(await page.getByTestId(`user-${USERS.superAdmin.email}`).textContent(), /Main super admin/);
   assert.match(await page.getByTestId(`user-${USERS.accountant.email}`).textContent(), new RegExp(`${WS_NAME} · Main accountant`));
   assert.match(await page.getByTestId(`user-${USERS.editor.email}`).textContent(), new RegExp(`${WS_NAME} · Entry user`));
   assert.match(await page.getByTestId(`user-${USERS.newcomer.email}`).textContent(), /No workspace yet/);
@@ -263,20 +263,18 @@ test("the super admin can give admin access to anyone, and take it back", async 
   assert.equal(sql(`select string_agg(change, ', ' order by at) from role_log where user_id = '${USERS.newcomer.id}' and workspace_id is null`), "made super admin, super admin removed");
 });
 
-test("the database keeps the guard rails: one super admin at least, and an owner for every workspace", async () => {
+test("the guard rails: the main super admin cannot step down, and every workspace keeps an owner", async () => {
+  // The main super admin cannot step down (the database refuses it too; see the RLS tests).
   await manage(USERS.superAdmin);
-  await page.getByRole("region", { name: "Full permissions" }).getByLabel(/Super admin/).click();
-  const dlg = page.getByRole("dialog", { name: "Remove super admin" });
-  await dlg.getByRole("button", { name: "Remove super admin" }).click();
-  await dlg.getByText("There must always be at least one super admin").waitFor();
-  await dlg.getByRole("button", { name: "Cancel" }).click();
+  assert.ok(await page.getByRole("region", { name: "Full permissions" }).getByLabel(/Super admin/).isDisabled());
+  await page.getByTestId("main-note").getByText("The main super admin always keeps full access.").waitFor();
   await eventually(() => isSuper(USERS.superAdmin), "t");
 
   await manage(USERS.owner);
   await page.getByTestId(`perm-${WS_NAME}`).getByLabel(`Role in ${WS_NAME}`).selectOption({ label: "Admin" });
   await page.getByRole("alert").getByText(/A workspace needs an owner/).waitFor();
   await eventually(() => roleOf(USERS.owner), "owner true false");
-  sa.expectRefusals(2);
+  sa.expectRefusals(1);
   await page.waitForTimeout(500);
   await shot(page, "admin-permissions-owner");
 });

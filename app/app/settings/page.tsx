@@ -135,7 +135,9 @@ export default function Settings() {
             action: async () => { const { error } = await db.rpc("remove_sample_data"); if (error) throw new Error(error.message); await reloadWorkspaces(); note("Sample data removed."); router.replace("/app"); },
           })}>Remove sample data</button>
           <button className="text-red-600" onClick={signOut}>Sign out</button>
-          <button className="text-red-600" onClick={() => setPrompting("delAccount")}>Delete my account</button>
+          {profile.main_super_admin
+            ? <span className="text-xs text-slate-500">As the main super admin, your account cannot be deleted.</span>
+            : <button className="text-red-600" onClick={() => setPrompting("delAccount")}>Delete my account</button>}
         </div></section>
 
       {!canManage ? (<section className={card}><p className="text-sm text-slate-500">You are <b>{roleName}</b> in “{ws.name}”. Only owners and admins can change workspace settings.</p>

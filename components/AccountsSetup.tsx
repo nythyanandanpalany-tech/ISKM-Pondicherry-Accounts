@@ -5,6 +5,7 @@ import { dmy } from "@/lib/format";
 import { BOOKS, BOOK_ORDER } from "@/lib/accounts";
 import type { Book, Category, OpeningBalance } from "@/lib/types";
 import { useWs } from "./WorkspaceProvider";
+import ChartOfAccounts from "./ChartOfAccounts";
 import { btnGhost, btnPrimary, input } from "./ui";
 
 const card = "rounded-lg border border-slate-200 bg-surface p-5 shadow-card";
@@ -126,6 +127,8 @@ export default function AccountsSetup({ opening, onChanged }: { opening: Opening
   return (
     <div className="space-y-6">
       {err && <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>}
+
+      <ChartOfAccounts onChanged={onChanged} />
 
       <section className={card}>
         <h2 className={h2}>Heads and their books</h2>

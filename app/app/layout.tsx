@@ -27,8 +27,8 @@ function NavLinks({ tabs, path, unread, onNavigate }: { tabs: [string, string][]
   );
 }
 
-function SidebarContent({ tabs, path, unread, profile, role, superAdmin, signOut, wsPicker, menu, setMenu, onNavigate }: {
-  tabs: [string, string][]; path: string; unread: number; profile: { full_name: string | null; email: string }; role: string; superAdmin: boolean;
+function SidebarContent({ tabs, path, unread, profile, role, superAdmin, logs, signOut, wsPicker, menu, setMenu, onNavigate }: {
+  tabs: [string, string][]; path: string; unread: number; profile: { full_name: string | null; email: string }; role: string; superAdmin: boolean; logs: boolean;
   signOut: () => void; wsPicker: React.ReactNode; menu: boolean; setMenu: (v: boolean) => void; onNavigate?: () => void;
 }) {
   return (
@@ -44,6 +44,7 @@ function SidebarContent({ tabs, path, unread, profile, role, superAdmin, signOut
       <div className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">More</div>
       <nav className="mb-4 flex flex-col gap-1">
         {superAdmin && <Link href="/app/admin" onClick={onNavigate} className={`rounded-md px-3 py-2 text-sm font-medium ${path.startsWith("/app/admin") ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`}>Users &amp; permissions</Link>}
+        {logs && <Link href="/app/logs" onClick={onNavigate} className={`rounded-md px-3 py-2 text-sm font-medium ${path.startsWith("/app/logs") ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`}>Logs</Link>}
         <Link href="/app/settings" onClick={onNavigate} className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700">Settings</Link>
         <Link href="/app/help" onClick={onNavigate} className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700">Help &amp; support</Link>
       </nav>
@@ -71,7 +72,7 @@ function SidebarContent({ tabs, path, unread, profile, role, superAdmin, signOut
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { profile, advanced, signOut } = useAuth();
-  const { ws, workspaces, switchTo, reloadWorkspaces, canAccount, roleName, superAdmin } = useWs();
+  const { ws, workspaces, switchTo, reloadWorkspaces, canAccount, canManage, roleName, superAdmin } = useWs();
   const path = usePathname();
   const [menu, setMenu] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
@@ -100,14 +101,14 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-workspace text-slate-800">
       {/* Sidebar (desktop) */}
       <aside className="sticky top-0 hidden h-screen w-[250px] shrink-0 flex-col border-r border-slate-200 bg-sidebar px-4 py-6 sm:flex">
-        <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={roleName} superAdmin={superAdmin} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} />
+        <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={roleName} superAdmin={superAdmin} logs={canManage} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} />
       </aside>
 
       {/* Sidebar (mobile overlay) */}
       {mobileNav && (
         <div className="fixed inset-0 z-50 flex sm:hidden" onClick={() => setMobileNav(false)}>
           <div className="flex h-full w-[250px] flex-col border-r border-slate-200 bg-sidebar px-4 py-6" onClick={(e) => e.stopPropagation()}>
-            <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={roleName} superAdmin={superAdmin} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} onNavigate={() => setMobileNav(false)} />
+            <SidebarContent tabs={tabs} path={path} unread={unread} profile={profile} role={roleName} superAdmin={superAdmin} logs={canManage} signOut={signOut} wsPicker={wsPicker} menu={menu} setMenu={setMenu} onNavigate={() => setMobileNav(false)} />
           </div>
           <div className="flex-1 bg-slate-800/40" />
         </div>

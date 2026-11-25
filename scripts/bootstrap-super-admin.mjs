@@ -1,4 +1,4 @@
-// Makes the account in SUPER_ADMIN_EMAIL a super admin on the live project, with SUPER_ADMIN_PASSWORD
+// Makes the account in SUPER_ADMIN_EMAIL the MAIN super admin on the live project, with SUPER_ADMIN_PASSWORD
 // as its password — creating the account (already confirmed) if it does not exist yet.
 //
 //   node --env-file=.env scripts/bootstrap-super-admin.mjs
@@ -46,11 +46,16 @@ if (id) {
   console.log(`Created ${email} (already confirmed).`);
 }
 
-const [before] = await sql(`select super_admin from profiles where id = ${lit(id)}`);
+const [before] = await sql(`select super_admin, main_super_admin from profiles where id = ${lit(id)}`);
 if (!before) throw new Error(`No profile row for ${email}; is the roles migration applied?`);
 if (!before.super_admin) {
   await sql(`update profiles set super_admin = true where id = ${lit(id)};
              insert into role_log (by_user, user_id, change) values (null, ${lit(id)}, 'made super admin (bootstrap)');`);
 }
-const [after] = await sql(`select p.super_admin, u.email_confirmed_at is not null as confirmed from profiles p join auth.users u on u.id = p.id where p.id = ${lit(id)}`);
-console.log(`${email}: super admin = ${after.super_admin}, confirmed = ${after.confirmed}`);
+// The main super admin: the one account no other super admin can demote, change or delete.
+if (!before.main_super_admin) {
+  await sql(`update profiles set main_super_admin = false where main_super_admin and id <> ${lit(id)};
+             update profiles set main_super_admin = true where id = ${lit(id)};`);
+}
+const [after] = await sql(`select p.super_admin, p.main_super_admin, u.email_confirmed_at is not null as confirmed from profiles p join auth.users u on u.id = p.id where p.id = ${lit(id)}`);
+console.log(`${email}: super admin = ${after.super_admin}, main = ${after.main_super_admin}, confirmed = ${after.confirmed}`);

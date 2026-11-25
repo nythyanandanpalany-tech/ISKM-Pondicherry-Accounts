@@ -96,10 +96,11 @@ from the server.
   payment to the unpaid bill it clears, and opening balances. Run it after the vouchers one; it changes no existing entry.
   `20260101000007_week_settlement.sql` adds the weekly settlement (cash counts and settled weeks). Run it after the books one.
   `20260101000008_roles.sql` adds users and roles — super admin, main accountant, entry user, full view (below).
-  `20260101000009_daily_report.sql` adds the 3:30 AM Telegram report (below); it switches on pg_cron and pg_net. Run it last.
+  `20260101000009_daily_report.sql` adds the 3:30 AM Telegram report (below); it switches on pg_cron and pg_net.
+  `20260101000010_chart_logs_main_admin.sql` adds the chart of accounts, the main super admin and the activity log. Run it last.
 - `supabase/tests/` — the policy tests. `npm run test:rls` applies the schema to a scratch database on any PostgreSQL
   you point it at (`PGHOST`/`PGPORT`/`PGUSER`) and asserts that each role can do exactly what it should and nothing
-  more — 279 checks, including voucher numbering, the books, the weekly settlement, users and roles, and the daily report. No Docker or Supabase account needed. See `supabase/tests/README.md`.
+  more — 329 checks, including voucher numbering, the books, the weekly settlement, users and roles, the daily report, the chart of accounts, the main super admin and the activity log. No Docker or Supabase account needed. See `supabase/tests/README.md`.
 
 ## Branding & look (ISKM Pondicherry)
 
@@ -234,6 +235,28 @@ from the browser, and the `admin_*` functions refuse anyone who is not a super a
 **The first super admin** is whoever `SUPER_ADMIN_EMAIL` names in `.env`. Apply the roles migration, then run
 `node --env-file=.env scripts/bootstrap-super-admin.mjs`: it sets that account's password to `SUPER_ADMIN_PASSWORD` (creating
 the account, already confirmed, if needed) and marks it super admin. From then on, roles are managed in the app.
+
+## Chart of accounts, the main super admin, and Logs
+
+**Chart of accounts (section H).** Accounts → Setup shows the chart from the FY2025-26 final accounts (`chart_of_accounts()` in
+the database) as a draft *awaiting super admin approval*, with ✓ for lines already in the workspace and ＋ for those missing. A
+super admin approves it: the missing heads and banks are created, every chart head goes in its book (Gaushala → Goshala, Purchase
+of books → Books, everything else → Temple; Construction – Building and Fixed assets purchased as capital), and the approval is
+stamped with who and when. Heads from before the chart are then listed with their voucher counts, and a super admin can **merge**
+each into a chart head of the same kind: its vouchers move across with their numbers unchanged (each voucher's history records
+it), and the old head is removed. Nothing is deleted by approving.
+
+**The main super admin.** Every super admin has the same powers, except over the *main* super admin — the account
+`scripts/bootstrap-super-admin.mjs` names (`profiles.main_super_admin`, one at most). Nobody else can take their super admin away,
+change or remove their workspace roles, and their account cannot be deleted — not from the app, and not by deleting the user in
+the database.
+
+**Logs** (sidebar; owners, admins, super admins) lists every action of every user: entries added/changed/deleted with the fields
+that changed (old → new), heads and merges, people, members and roles, super admin changes, bank accounts and statement matching,
+opening balances, weekly settlement counts and settling, daily-report settings and sends (never the bot token), store moves, the
+chart approval, sign-ups and sign-ins. It is written by database triggers into `activity_log`, which no one can edit or delete;
+a cascade (deleting a workspace) is one line, not one per row. Super admins see every workspace plus sign-ins and role changes;
+owners and admins see their own workspace. Filters: workspace, who, area, dates, search.
 
 ## Daily report (Mangalarti)
 
