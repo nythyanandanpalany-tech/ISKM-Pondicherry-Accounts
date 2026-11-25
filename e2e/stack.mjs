@@ -95,6 +95,7 @@ export async function startStack() {
   const appEnv = {
     NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${PORTS.gateway}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-anon-key",
     NEXT_PUBLIC_SEED_DUMMY_DATA: "false", NEXT_TELEMETRY_DISABLED: "1",
+    TELEGRAM_API_BASE: `http://127.0.0.1:${PORTS.gateway}`,  // "Find my group" asks the gateway, never Telegram
   };
   buildApp(appEnv);
   const app = run("next", path.join(APP_DIR, "node_modules/.bin/next"), ["start", "-p", String(PORTS.app)], appEnv, APP_DIR);

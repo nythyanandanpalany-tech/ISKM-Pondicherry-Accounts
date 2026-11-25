@@ -10,7 +10,7 @@
 // nothing about passwords beyond the fixed test password, and it must never be pointed at real data.
 import http from "node:http";
 import crypto from "node:crypto";
-import { PASSWORD, USERS } from "./fixtures.mjs";
+import { PASSWORD, TELEGRAM_TOKEN, USERS } from "./fixtures.mjs";
 
 const b64 = (x) => Buffer.from(typeof x === "string" ? x : JSON.stringify(x)).toString("base64url");
 
@@ -92,6 +92,16 @@ export function startGateway({ port, postgrest, secret }) {
       }
       if (url.pathname === "/auth/v1/logout") { res.writeHead(204); return res.end(); }
       if (url.pathname.startsWith("/auth/v1/")) return json(400, { code: 400, msg: "not available in the end-to-end stack" });
+
+      // Telegram's getUpdates, for the Daily report's "Find my group" (the app's server route calls it).
+      const tg = url.pathname.match(/^\/bot([^/]+)\/getUpdates$/);
+      if (tg) {
+        if (tg[1] !== TELEGRAM_TOKEN) return json(401, { ok: false, error_code: 401, description: "Unauthorized" });
+        return json(200, { ok: true, result: [
+          { update_id: 1, my_chat_member: { chat: { id: -1009876543210, title: "ISKM Pondicherry Reporting", type: "supergroup" } } },
+          { update_id: 2, message: { chat: { id: 42, type: "private", first_name: "Prabhu" }, text: "/start" } },
+        ] });
+      }
 
       return json(404, { message: `the end-to-end stack has no ${url.pathname}` });
     } catch (e) {

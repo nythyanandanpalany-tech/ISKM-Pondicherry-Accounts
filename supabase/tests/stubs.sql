@@ -70,3 +70,26 @@ grant execute on function storage.foldername(text) to anon, authenticated, servi
 -- real project sees.
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+
+-- pg_net and pg_cron (the daily report). Same names and shapes as Supabase's; nothing leaves the machine.
+-- net.http_post records the request instead of sending it, and a test plays Telegram's reply by inserting
+-- into net._http_response. cron.schedule just remembers the job.
+create schema if not exists net;
+create table if not exists net.http_request_queue (
+  id bigserial primary key, method text default 'POST', url text not null, headers jsonb, body jsonb, timeout_milliseconds int
+);
+create table if not exists net._http_response (
+  id bigint primary key, status_code int, content_type text, headers jsonb, content text, timed_out boolean, error_msg text,
+  created timestamptz not null default now()
+);
+create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb,
+  headers jsonb default '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds int default 5000) returns bigint
+language sql as $$
+  insert into net.http_request_queue (url, headers, body, timeout_milliseconds) values (url, headers, body, timeout_milliseconds) returning id
+$$;
+create schema if not exists cron;
+create table if not exists cron.job (jobid bigserial primary key, jobname text unique, schedule text not null, command text not null);
+create or replace function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as $$
+  insert into cron.job (jobname, schedule, command) values (job_name, schedule, command)
+  on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning jobid
+$$;

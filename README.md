@@ -10,8 +10,8 @@ Sample screens are in `docs/sample/`.
 
 The browser talks to Postgres directly through Supabase's API. There is no backend of our own to host: every
 permission rule lives in the database as **row level security** (`supabase/schema.sql`), so a signed-in sevak can only
-ever read and write what their role in that workspace allows. The single server-side route is `/api/keepalive`, a
-daily ping that stops Supabase pausing an idle free project.
+ever read and write what their role in that workspace allows. The server-side routes are `/api/keepalive`, a daily
+ping that stops Supabase pausing an idle free project, and `/api/telegram/chats`, which finds the Telegram group a new bot was added to.
 
 ## Try it locally
 
@@ -95,10 +95,11 @@ from the server.
   `20260101000006_books.sql` adds what the books need on top of the vouchers: a book per head, bank accounts, the link from a
   payment to the unpaid bill it clears, and opening balances. Run it after the vouchers one; it changes no existing entry.
   `20260101000007_week_settlement.sql` adds the weekly settlement (cash counts and settled weeks). Run it after the books one.
-  `20260101000008_roles.sql` adds users and roles — super admin, main accountant, entry user, full view (below). Run it last.
+  `20260101000008_roles.sql` adds users and roles — super admin, main accountant, entry user, full view (below).
+  `20260101000009_daily_report.sql` adds the 3:30 AM Telegram report (below); it switches on pg_cron and pg_net. Run it last.
 - `supabase/tests/` — the policy tests. `npm run test:rls` applies the schema to a scratch database on any PostgreSQL
   you point it at (`PGHOST`/`PGPORT`/`PGUSER`) and asserts that each role can do exactly what it should and nothing
-  more — 244 checks, including voucher numbering, the books, the weekly settlement and users and roles. No Docker or Supabase account needed. See `supabase/tests/README.md`.
+  more — 279 checks, including voucher numbering, the books, the weekly settlement, users and roles, and the daily report. No Docker or Supabase account needed. See `supabase/tests/README.md`.
 
 ## Branding & look (ISKM Pondicherry)
 
@@ -233,6 +234,24 @@ from the browser, and the `admin_*` functions refuse anyone who is not a super a
 **The first super admin** is whoever `SUPER_ADMIN_EMAIL` names in `.env`. Apply the roles migration, then run
 `node --env-file=.env scripts/bootstrap-super-admin.mjs`: it sets that account's password to `SUPER_ADMIN_PASSWORD` (creating
 the account, already confirmed, if needed) and marks it super admin. From then on, roles are managed in the app.
+
+## Daily report (Mangalarti)
+
+**Daily report** in the sidebar (owners, admins, main accountant) shows, for any day, exactly the messages the temple's Telegram
+group receives — one for all books together, then Temple, Goshala and Books. Each is, in order: total income and total expense,
+the amount under each head, then donors' names with amounts. A day, or a book, with no entries sends nothing. English for now
+(`report_settings.language` is there for Tamil later).
+
+It runs entirely in Supabase (`supabase/migrations/20260101000009_daily_report.sql`), so no server has to stay awake:
+
+- `daily_report_messages()` writes the text; the screen's preview and the scheduled send use the same function.
+- **pg_cron** runs `run_daily_reports()` at 22:00 UTC = **03:30 IST** and reports on the previous India day, once per day and book.
+- **pg_net** posts each message to Telegram's `sendMessage`. Telegram's reply is shown under *Sent* (delivered, or why not).
+- The bot token is kept in the `private` schema, which the API cannot reach; the screen can replace it but only ever shows a hint.
+
+**Setting it up (last step of the build order).** In Telegram, ask **@BotFather** for a new bot, *ISKM Pondicherry Reporting*, add it
+to the group and send any message there. Then, as an owner or admin: Daily report → paste the token → **Find my group** → **Send a
+test message** → tick *Send automatically* → **Save**. **Send … now** resends any day by hand.
 
 ## Weekly settlement
 

@@ -625,6 +625,104 @@ select t_allow('removing sample data leaves other people''s samples alone', 'sel
 reset role;
 select t_eq('  ...the other sample is still there', 'select count(*) from workspaces where id = ''cccccccc-cccc-cccc-cccc-cccccccccccc''', '1');
 
+-- ================================================================ daily report (3E)
+reset role;
+select t_eq('rupees are grouped the Indian way', 'select inr(123456.5) || '' '' || inr(1737) || '' '' || inr(0) || '' '' || inr(10000000)', '₹1,23,456.50 ₹1,737 ₹0 ₹1,00,00,000');
+-- Yesterday in India, which is what the 3:30 job reports on.
+select ((now() at time zone 'Asia/Kolkata')::date - 1)::text as dr_day, to_char((now() at time zone 'Asia/Kolkata')::date - 1, 'FMDay, FMDD Mon YYYY') as dr_long \gset
+insert into categories (id, workspace_id, name, kind) values
+  ('c0000000-0000-0000-0000-0000000000d1', :ws, 'Donation', 'income'),
+  ('c0000000-0000-0000-0000-0000000000d2', :ws, 'Goshala donation', 'income');
+insert into people (id, workspace_id, name) values ('d0000000-0000-0000-0000-0000000000d2', :ws, 'Sita');
+insert into entries (workspace_id, type, entry_date, amount, category_id, person_id, payment_mode, created_by) values
+  (:ws, 'income',  :'dr_day', 5000,    'c0000000-0000-0000-0000-0000000000d1', 'd0000000-0000-0000-0000-000000000001', 'UPI',  :owner),
+  (:ws, 'income',  :'dr_day', 1500,    'c0000000-0000-0000-0000-0000000000d1', null,                                   'Cash', :owner),
+  (:ws, 'income',  :'dr_day', 2000,    'c0000000-0000-0000-0000-0000000000d2', 'd0000000-0000-0000-0000-0000000000d2', 'Cash', :owner),
+  (:ws, 'expense', :'dr_day', 800,     'c0000000-0000-0000-0000-0000000000a1', null,                                   'Cash', :owner),
+  (:ws, 'expense', :'dr_day', 1250.50, 'c0000000-0000-0000-0000-0000000000a2', null,                                   'Cash', :editor),
+  (:ws, 'expense', :'dr_day', 300,     'c0000000-0000-0000-0000-000000000001', null,                                   'Cash', :editor);
+insert into entries (workspace_id, type, entry_date, amount, category_id, payment_mode, created_by) values
+  (:ws, 'expense', '2031-05-05', 99, 'c0000000-0000-0000-0000-000000000001', 'Cash', :owner);
+create or replace function t_msg(p_book text) returns text language sql as $$
+  select format('select message from daily_report_messages(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', %L) where book = %L',
+                ((now() at time zone 'Asia/Kolkata')::date - 1)::text, p_book) $$;
+
+:as_accountant
+select t_eq('the report has all books, then Temple, Goshala and Books',
+  format('select string_agg(book, '','') from daily_report_messages(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', %L)', :'dr_day'), 'all,temple,goshala,books');
+select t_eq('all books: totals, then heads, then donors',  t_msg('all'),
+  E'Hare Krishna 🙏\nTest Temple — Daily report · All books\n' || :'dr_long' || E'\n\nTotal income: ₹8,500\nTotal expense: ₹2,350.50\n\nIncome by head\n• Donation: ₹6,500\n• Goshala donation: ₹2,000\n\nExpense by head\n• Purchase of books: ₹1,250.50\n• Gaushala: ₹800\n• Test Cat: ₹300\n\nDonors\n• Ramesh: ₹5,000\n• Sita: ₹2,000\n• Name not recorded: ₹1,500');
+select t_eq('Goshala on its own', t_msg('goshala'),
+  E'Hare Krishna 🙏\nTest Temple — Daily report · Goshala\n' || :'dr_long' || E'\n\nTotal income: ₹2,000\nTotal expense: ₹800\n\nIncome by head\n• Goshala donation: ₹2,000\n\nExpense by head\n• Gaushala: ₹800\n\nDonors\n• Sita: ₹2,000');
+select t_eq('a book with no income has no income or donor lines', t_msg('books'),
+  E'Hare Krishna 🙏\nTest Temple — Daily report · Books\n' || :'dr_long' || E'\n\nTotal income: ₹0\nTotal expense: ₹1,250.50\n\nExpense by head\n• Purchase of books: ₹1,250.50');
+select t_eq('a book with nothing that day is left out',
+  'select string_agg(book, '','') from daily_report_messages(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''2031-05-05'')', 'all,temple');
+select t_eq('a day with no entries has no report at all',
+  'select count(*) from daily_report_messages(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''2031-05-06'')', '0');
+select t_deny('the accountant cannot see the Telegram settings', 'select * from daily_report_config(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')');
+select t_deny('the accountant cannot change them', 'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', false, ''-1001234567890'')');
+:as_editor
+select t_deny('an entry user cannot read the report (it shows everyone''s money)', t_msg('all'));
+:as_outsider
+select t_deny('an outsider cannot read another workspace''s report', t_msg('all'));
+
+:as_owner
+select t_deny('it cannot be switched on before the bot is set up',
+  'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', true, ''-1001234567890'')');
+select t_deny('a token that is not a bot token is refused',
+  'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', false, ''-1001234567890'', ''hello'')');
+select t_deny('a chat id that is not one is refused',
+  'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', false, ''my group'', ''123456789:AAEabcdefghijklmnopqrstuvwxyz012345wxyz'')');
+select t_allow('the owner sets the bot token and group and switches it on',
+  'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', true, ''-1001234567890'', ''123456789:AAEabcdefghijklmnopqrstuvwxyz012345wxyz'')');
+select t_eq('  ...the settings show a hint of the token, never the token',
+  'select enabled || '' '' || telegram_chat_id || '' '' || has_token || '' '' || token_hint from daily_report_config(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')',
+  'true -1001234567890 true 123456789:…wxyz');
+select t_deny('  ...and nobody can read the token from the API', 'select telegram_token from private.report_secrets');
+select t_eq('  ...nor find it in the settings table', 'select count(*) from report_settings where telegram_chat_id like ''%AAE%''', '0');
+select t_allow('saving again without a token keeps the saved one',
+  'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', true, ''-1001234567890'')');
+select t_eq('  ...still there', 'select has_token from daily_report_config(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')', 'true');
+select t_deny('the owner cannot run the 3:30 job by hand', 'select run_daily_reports()');
+select t_deny('nor call the sender directly', 'select _telegram_send(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', ''hi'')');
+select t_allow('a test message can be sent', 'select send_daily_report_test(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'')');
+reset role;
+select t_eq('  ...it went to Telegram''s sendMessage with the bot token, to the group',
+  'select url || '' '' || (body->>''chat_id'') from net.http_request_queue order by id desc limit 1',
+  'https://api.telegram.org/bot123456789:AAEabcdefghijklmnopqrstuvwxyz012345wxyz/sendMessage -1001234567890');
+
+-- The 3:30 job, as pg_cron runs it.
+select count(*) as q0 from net.http_request_queue \gset
+select t_eq('the job is scheduled for 22:00 UTC, which is 3:30 in India',
+  'select schedule || '' '' || command from cron.job where jobname = ''daily-report-mangalarti''', '0 22 * * * select public.run_daily_reports()');
+select t_eq('the job sends yesterday''s four messages', 'select run_daily_reports()', '4');
+select t_eq('  ...in order: all books, Temple, Goshala, Books',
+  format('select string_agg((body->>''text'' like ''%%· '' || b || E''\n%%'')::text, '','' order by n) from (select body, row_number() over (order by id) n from net.http_request_queue where id > %s) q join unnest(array[''All books'',''Temple'',''Goshala'',''Books'']) with ordinality u(b, n) using (n)', :q0),
+  'true,true,true,true');
+select t_eq('  ...and the first one is the all-books report, word for word',
+  format('select (body->>''text'') = (select message from daily_report_messages(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', %L) where book = ''all'') from net.http_request_queue where id = %s + 1', :'dr_day', :q0), 'true');
+select t_eq('running it again sends nothing twice', 'select run_daily_reports()', '0');
+:as_owner
+select t_eq('"send this day now" sends it again on purpose', format('select send_daily_report_now(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', %L)', :'dr_day'), '4');
+:as_editor
+select t_deny('an entry user cannot send it', format('select send_daily_report_now(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', %L)', :'dr_day'));
+-- Telegram answers: the first scheduled message arrived, the second was refused.
+reset role;
+insert into net._http_response (id, status_code, content) values
+  (:q0 + 1, 200, '{"ok":true}'), (:q0 + 2, 400, '{"ok":false,"description":"Bad Request: chat not found"}');
+:as_owner
+select t_eq('the log shows what Telegram said',
+  'select string_agg(coalesce(status::text, ''…'') || '':'' || coalesce(error, ''-''), '' | '' order by book) from daily_report_log(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'') where kind = ''scheduled''',
+  '200:- | …:- | …:- | 400:Bad Request: chat not found');
+:as_accountant
+select t_eq('the accountant cannot read the delivery log', 'select count(*) from report_deliveries', '0');
+:as_owner
+select t_allow('switching it off', 'select set_daily_report(''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'', false, ''-1001234567890'')');
+reset role;
+delete from report_deliveries where kind = 'scheduled';
+select t_eq('  ...stops the 3:30 job sending', 'select run_daily_reports()', '0');
+
 select t_eq('the workspace has history to lose', 'select count(*) > 0 from entry_log where workspace_id = ''aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa''', 'true');
 :as_owner
 select t_allow('the owner may delete the workspace',

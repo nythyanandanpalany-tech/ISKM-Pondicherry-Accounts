@@ -14,6 +14,9 @@ export const USERS = {
   newcomer: { id: "66666666-6666-4666-8666-666666666666", email: "newcomer@e2e.test", name: "Nila Newcomer" },
 };
 
+/** The bot token the stand-in Telegram (gateway.mjs) accepts. */
+export const TELEGRAM_TOKEN = "123456789:AAEe2eTestTokenAbcdefghijklmnopqrstuv";
+
 export const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 export const WS_NAME = "E2E Temple";
 
@@ -43,6 +46,8 @@ insert into members (workspace_id, user_id, role, see_all) values
   (${q(WS)}, ${q(USERS.accountant.id)}, 'accountant', false);
 update profiles set super_admin = true where id = ${q(USERS.superAdmin.id)};
 delete from role_log;
+delete from net.http_request_queue;
+delete from net._http_response;
 insert into categories (id, workspace_id, name, kind) values
   (${q(CAT.annadanam)}, ${q(WS)}, 'Annadanam', 'expense'),
   (${q(CAT.festival)}, ${q(WS)}, 'Festival', 'expense'),
